@@ -1,0 +1,3492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rental Log">
+<meta name="theme-color" content="#123B37">
+<title>Rental Log</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; overscroll-behavior-y: none; }
+  body {
+    --ink: #16332F;
+    --teal-deep: #123B37;
+    --teal-mid: #1F6259;
+    --lagoon: #3FAE9F;
+    --lagoon-soft: #DCEFE9;
+    --sand: #F7F2E7;
+    --sand-dark: #EDE3CC;
+    --coral: #E0663F;
+    --coral-soft: #FBE4D9;
+    --white: #FFFFFF;
+    --line: #DDD3B8;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--ink);
+    background: var(--sand);
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+    padding-top: env(safe-area-inset-top);
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .bl-display { font-family: 'Arial Black', 'Helvetica Neue', sans-serif; font-weight: 900; letter-spacing: 0.01em; text-transform: uppercase; }
+  .bl-mono { font-family: 'SF Mono', 'Courier New', monospace; }
+
+  .bl-wrap { max-width: 720px; margin: 0 auto; padding: 20px 16px calc(90px + env(safe-area-inset-bottom)); }
+
+  .bl-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+  .bl-header h1 { font-size: 30px; margin: 0; color: var(--teal-deep); line-height: 0.95; }
+  .bl-header .bl-tag { font-size: 12.5px; color: var(--teal-mid); margin-top: 4px; font-weight: 600; }
+
+  .bl-fab {
+    position: fixed; bottom: calc(22px + env(safe-area-inset-bottom)); right: 22px; width: 58px; height: 58px; border-radius: 50%;
+    background: var(--coral); color: white; border: none; font-size: 28px; font-weight: 400;
+    box-shadow: 0 4px 14px rgba(224,102,63,0.5); cursor: pointer; z-index: 40;
+    display: flex; align-items: center; justify-content: center; line-height: 1;
+  }
+  .bl-fab:active { transform: scale(0.94); }
+
+  .bl-section-label { font-size: 11.5px; font-weight: 700; color: var(--teal-mid); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 8px; }
+
+  .bl-dock { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 18px; -webkit-overflow-scrolling: touch; }
+  .bl-dragging { opacity: 0.95; transform: scale(1.06); box-shadow: 0 10px 24px rgba(0,0,0,0.35); pointer-events: none; }
+  .bl-drag-placeholder { border: 2px dashed var(--line); border-radius: 10px; background: var(--sand-dark); opacity: 0.6; flex: 0 0 auto; }
+  .bl-piling {
+    background: var(--teal-deep); border-radius: 10px; padding: 12px 14px 10px;
+    min-width: 108px; flex: 0 0 auto; position: relative; overflow: hidden;
+    color: var(--sand); cursor: pointer;
+  }
+  .bl-piling .bl-item-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; opacity: 0.85; margin-bottom: 6px; position: relative; z-index: 2;}
+  .bl-piling .bl-waterline { position: absolute; left: 0; right: 0; bottom: 0; background: var(--lagoon); transition: height 0.4s ease; z-index: 1; }
+  .bl-piling .bl-waterline::before { content: ''; position: absolute; top: -3px; left: 0; right: 0; height: 6px; background: repeating-linear-gradient(90deg, rgba(255,255,255,0.35) 0 8px, transparent 8px 16px); }
+  .bl-piling .bl-count { font-size: 24px; font-weight: 700; position: relative; z-index: 2; font-family: 'SF Mono', 'Courier New', monospace; }
+  .bl-piling .bl-count small { font-size: 12px; font-weight: 500; opacity: 0.8; }
+  .bl-piling .bl-sub { font-size: 10.5px; position: relative; z-index: 2; opacity: 0.9; margin-top: 2px; }
+  .bl-piling .bl-price-tag { font-size: 10.5px; position: relative; z-index: 2; opacity: 0.95; margin-top: 4px; font-weight: 700; }
+  .bl-piling.bl-add-item { display: flex; align-items: center; justify-content: center; background: transparent; border: 2px dashed var(--line); color: var(--teal-mid); font-weight: 700; font-size: 12.5px; min-height: 88px; text-align: center; }
+
+  .bl-addon-piling { background: var(--teal-mid); }
+  .bl-addon-applies { font-size: 9.5px; position: relative; z-index: 2; opacity: 0.85; margin-top: 4px; line-height: 1.25; }
+  .bl-addon-size-breakdown { font-size: 9px; position: relative; z-index: 2; opacity: 0.9; margin-top: 3px; line-height: 1.3; }
+
+  .bl-addon-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 22px; -webkit-overflow-scrolling: touch; }
+  .bl-addon-chip {
+    background: var(--white); border: 1.5px solid var(--line); border-radius: 20px; padding: 8px 14px;
+    font-size: 12.5px; font-weight: 600; color: var(--ink); flex: 0 0 auto; cursor: pointer; white-space: nowrap;
+  }
+  .bl-addon-chip b { color: var(--teal-mid); margin-left: 4px; }
+  .bl-addon-chip.bl-add-addon { border-style: dashed; color: var(--teal-mid); }
+
+  .bl-tabs { display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+  .bl-tab { flex: 0 0 auto; background: none; border: none; padding: 8px 13px; border-radius: 20px; font-size: 12.5px; font-weight: 700; color: var(--teal-mid); cursor: pointer; white-space: nowrap; }
+  .bl-tab.active { background: var(--teal-deep); color: white; }
+  .bl-tab .bl-tab-count { opacity: 0.7; margin-left: 2px; }
+
+  .bl-cards { display: flex; flex-direction: column; gap: 10px; }
+  .bl-card { background: var(--white); border-radius: 12px; padding: 14px 16px; border: 1px solid var(--line); }
+  .bl-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+  .bl-card-title { font-weight: 700; font-size: 15.5px; }
+  .bl-card-title-clickable { cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .bl-card-meta { font-size: 12px; color: #5B6E68; margin-top: 2px; }
+  .bl-card-addons { font-size: 11.5px; color: var(--teal-mid); margin-top: 2px; font-weight: 600; }
+  .bl-card-dates { font-size: 12px; color: var(--teal-mid); font-weight: 700; text-align: right; }
+  .bl-card-money { font-size: 12px; color: #5B6E68; margin-top: 6px; }
+  .bl-card-money b { color: var(--ink); }
+
+  .bl-stepper { display: flex; align-items: center; margin: 12px 0 2px; }
+  .bl-step { display: flex; align-items: center; gap: 5px; }
+  .bl-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--sand-dark); border: 2px solid var(--line); flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 10px; color: transparent; }
+  .bl-dot-clickable { cursor: pointer; }
+  .bl-dot-clickable:hover { box-shadow: 0 0 0 3px var(--coral-soft); }
+  .bl-dot.done { background: var(--lagoon); border-color: var(--teal-mid); color: white; }
+  .bl-step-label { font-size: 9.5px; font-weight: 700; color: #8A9490; text-transform: uppercase; letter-spacing: 0.01em; white-space: nowrap; display: none; }
+  .bl-step-label.done { color: var(--teal-mid); }
+  .bl-step-line { height: 2px; flex: 1; background: var(--line); margin: 0 3px; min-width: 8px; }
+  .bl-step-line.done { background: var(--lagoon); }
+
+  @media (min-width: 480px) {
+    .bl-step-label { display: block; }
+  }
+
+  .bl-card-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .bl-action-btn { border: none; border-radius: 7px; padding: 10px 14px; font-size: 13px; font-weight: 700; cursor: pointer; color: white; background: var(--coral); text-align: right; }
+  .bl-action-btn:active { opacity: 0.85; }
+  .bl-edit-btn { background: none; border: none; color: #8A9490; font-size: 12px; cursor: pointer; text-decoration: underline; padding: 6px 0; }
+  .bl-done-tag { font-size: 12px; font-weight: 700; color: var(--teal-mid); background: var(--lagoon-soft); padding: 6px 10px; border-radius: 6px; }
+  .bl-cancelled-tag { color: #A8492A; background: var(--coral-soft); }
+  .bl-cancelled-banner { font-size: 12.5px; font-weight: 700; color: #A8492A; background: var(--coral-soft); padding: 8px 12px; border-radius: 8px; margin: 12px 0 2px; }
+  .bl-cancel-btn-link { color: var(--coral) !important; }
+
+  .bl-empty { text-align: center; padding: 46px 20px; color: #8A9490; }
+  .bl-empty .bl-display { font-size: 20px; color: var(--teal-mid); margin-bottom: 6px; }
+
+  .bl-overlay { position: fixed; inset: 0; background: rgba(18, 51, 47, 0.55); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
+  .bl-modal { background: white; border-radius: 16px 16px 0 0; padding: 20px 18px calc(24px + env(safe-area-inset-bottom)); max-width: 480px; width: 100%; max-height: 90vh; overflow-y: auto; }
+  .bl-detail-header { border-bottom: 1.5px solid var(--line); padding-bottom: 14px; margin-bottom: 14px; }
+  .bl-detail-status { margin-bottom: 4px; }
+  @media (min-width: 560px) {
+    .bl-overlay { align-items: center; padding: 20px; }
+    .bl-modal { border-radius: 14px; }
+  }
+  .bl-modal h2 { font-family: 'Arial Black', sans-serif; text-transform: uppercase; font-size: 20px; color: var(--teal-deep); margin: 0 0 14px; }
+  .bl-field { margin-bottom: 14px; }
+  .bl-field label { display: block; font-size: 11.5px; font-weight: 700; color: var(--teal-mid); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.02em; }
+  .bl-field input, .bl-field select { width: 100%; height: 44px; box-sizing: border-box; padding: 0 10px; border: 1.5px solid var(--line); border-radius: 7px; font-size: 16px; font-family: inherit; background: var(--sand); }
+  .bl-field input[type="date"] { -webkit-appearance: none; appearance: none; }
+  .bl-field input:focus, .bl-field select:focus { outline: 2px solid var(--lagoon); border-color: var(--lagoon); }
+  .bl-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .bl-time-trigger { width: 100%; height: 44px; box-sizing: border-box; text-align: left; padding: 0 10px; border: 1.5px solid var(--line); border-radius: 7px; font-size: 15px; font-family: inherit; background: var(--sand); color: var(--ink); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .bl-time-trigger-caret { color: var(--teal-mid); font-size: 11px; }
+  .bl-wheel-time-panel { margin-top: 8px; }
+  .bl-daterange-panel { margin-top: 8px; }
+  .bl-daterange-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .bl-daterange-actions .bl-cancel-btn, .bl-daterange-actions .bl-save-btn { flex: 1; margin: 0; }
+  .bl-mini-cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .bl-mini-cal-nav-btn { background: var(--sand-dark); border: none; width: 30px; height: 30px; border-radius: 7px; font-size: 16px; color: var(--teal-deep); cursor: pointer; }
+  .bl-mini-cal-month-label { font-size: 13.5px; font-weight: 700; color: var(--teal-deep); }
+  .bl-mini-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .bl-mini-cal-wd { text-align: center; font-size: 10.5px; font-weight: 700; color: #8A9490; padding: 4px 0; }
+  .bl-mini-cal-day { background: none; border: none; height: 34px; border-radius: 7px; font-size: 13.5px; color: var(--ink); cursor: pointer; }
+  .bl-mini-cal-day:hover { background: var(--sand-dark); }
+  .bl-mini-cal-empty { cursor: default; }
+  .bl-mini-cal-inrange { background: var(--lagoon-soft); border-radius: 0; }
+  .bl-mini-cal-start, .bl-mini-cal-end { background: var(--teal-mid); color: white; font-weight: 700; }
+  .bl-time-done-btn { display: block; width: 100%; margin-top: 8px; background: var(--teal-mid); color: white; border: none; padding: 9px; border-radius: 7px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .bl-wheel-time { position: relative; display: flex; gap: 2px; height: 180px; background: var(--sand); border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .bl-wheel-highlight { position: absolute; top: 50%; left: 6px; right: 6px; height: 36px; transform: translateY(-18px); background: var(--sand-dark); border-radius: 8px; pointer-events: none; z-index: 0; box-shadow: 0 0 0 1px var(--line) inset; }
+  .bl-wheel-col { flex: 1; overflow-y: scroll; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; position: relative; z-index: 1; padding: 72px 0; scrollbar-width: none; height: 100%; }
+  .bl-wheel-col::-webkit-scrollbar { display: none; }
+  .bl-wheel-item { height: 36px; display: flex; align-items: center; justify-content: center; font-size: 17px; scroll-snap-align: center; color: var(--ink); opacity: 0.32; font-weight: 500; transition: opacity 0.15s, font-weight 0.15s; }
+  .bl-wheel-item.bl-wheel-selected { opacity: 1; font-weight: 700; color: var(--teal-deep); }
+  .bl-modal-actions { display: flex; justify-content: space-between; margin-top: 16px; gap: 8px; align-items: center; }
+  .bl-cancel-btn { background: none; border: none; color: #8A9490; font-weight: 700; cursor: pointer; font-size: 13px; padding: 8px 0;}
+  .bl-save-btn { background: var(--coral); color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 14px; }
+  .bl-delete-btn { background: none; border: none; color: var(--coral); font-weight: 700; cursor: pointer; font-size: 12px; padding: 8px 0;}
+
+  .bl-banner { background: #FBE4D9; color: #A8492A; padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 13px; }
+  .bl-retry-btn { background: #A8492A; color: white; border: none; padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; margin-left: 6px; }
+
+  .bl-save-toast {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(10px);
+    background: var(--teal-deep); color: white; padding: 8px 16px; border-radius: 20px;
+    font-size: 12.5px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
+    z-index: 60; box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+  }
+  .bl-save-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .bl-view-toggle { display: flex; gap: 6px; margin-bottom: 18px; background: var(--sand-dark); border-radius: 10px; padding: 4px; }
+  .bl-view-btn { flex: 1; border: none; background: none; padding: 9px 10px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--teal-mid); cursor: pointer; }
+  .bl-view-btn.active { background: var(--teal-deep); color: white; }
+
+  .bl-cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .bl-cal-nav-btn { background: var(--white); border: 1.5px solid var(--line); width: 34px; height: 34px; border-radius: 8px; font-size: 16px; font-weight: 700; color: var(--teal-mid); cursor: pointer; }
+  .bl-cal-label { font-size: 14px; font-weight: 700; color: var(--teal-deep); }
+  .bl-cal-label-btn { background: none; border: none; font-family: inherit; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+  .bl-cal-label-btn:hover { background: var(--sand-dark); }
+  .bl-cal-today-btn { background: none; border: none; color: var(--teal-mid); font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline; }
+
+  .bl-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 16px; }
+  .bl-cal-grid-month { gap: 4px; }
+  .bl-cal-month-weekday { text-align: center; font-size: 9.5px; font-weight: 700; color: #8A9490; text-transform: uppercase; padding-bottom: 2px; }
+  .bl-cal-day-month { min-height: 72px; padding: 4px 3px 4px; text-align: left; display: flex; flex-direction: column; }
+  .bl-cal-day-month .bl-cal-daynum { font-size: 11.5px; margin: 0 0 2px; text-align: center; }
+  .bl-cal-chips { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow: hidden; }
+  .bl-cal-chip { font-size: 9px; font-weight: 700; color: white; padding: 2px 4px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+  .bl-cal-chip-done { opacity: 0.5; }
+  .bl-cal-chip-more { font-size: 8.5px; color: #8A9490; font-weight: 700; text-align: center; margin-top: 1px; }
+  .bl-cal-day-muted { opacity: 0.35; }
+  .bl-cal-month-weekday-row { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 2px; }
+  .bl-cal-month-weeks { display: flex; flex-direction: column; background: var(--white); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .bl-cal-week-row { display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: 20px repeat(3, 17px) 12px; column-gap: 0; row-gap: 2px; border-bottom: 1px solid var(--line); padding: 3px 0; }
+  .bl-cal-week-row:last-child { border-bottom: none; }
+  .bl-cal-day-bg { cursor: pointer; background: transparent; position: relative; z-index: 0; }
+  .bl-cal-day-bg.selected { background: var(--lagoon-soft); }
+  .bl-cal-day-bg.today { box-shadow: inset 0 0 0 1.5px var(--coral); }
+  .bl-cal-daynum-cell { text-align: center; font-size: 11.5px; font-weight: 700; color: var(--ink); font-family: 'SF Mono', 'Courier New', monospace; cursor: pointer; border-radius: 6px; position: relative; z-index: 1; }
+  .bl-cal-col-divider { border-right: 1px solid var(--line); pointer-events: none; position: relative; z-index: 1; }
+  .bl-cal-daynum-cell.today { color: var(--coral); }
+  .bl-cal-bar { font-size: 9.5px; font-weight: 700; color: white; padding: 1px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: center; text-align: center; position: relative; z-index: 2; }
+  .bl-cal-bar-done { opacity: 0.5; }
+  .bl-cal-bar-contleft { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -2px; }
+  .bl-cal-bar-contright { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: -2px; }
+  .bl-cal-more-cell { font-size: 9px; font-weight: 700; color: var(--teal-mid); text-align: center; cursor: pointer; position: relative; z-index: 2; background: var(--sand-dark); border-radius: 4px; display: flex; align-items: center; justify-content: center; margin: 0 1px; }
+  .bl-cal-more-cell:hover { background: var(--lagoon-soft); }
+
+  .bl-week-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .bl-week-day-card { background: var(--white); border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 14px; cursor: pointer; }
+  .bl-week-day-card.today { border-color: var(--coral); }
+  .bl-week-day-card.selected { background: var(--lagoon-soft); }
+  .bl-week-day-head { display: flex; justify-content: space-between; align-items: center; }
+  .bl-week-day-date { font-size: 13.5px; font-weight: 700; color: var(--teal-deep); }
+  .bl-week-day-bookings { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
+  .bl-week-booking { font-size: 12.5px; color: var(--ink); padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+  .bl-booking-status { font-size: 11px; font-weight: 700; }
+  .bl-booking-status-done { color: var(--teal-mid); }
+  .bl-booking-status-cancelled { color: var(--coral); }
+  .bl-week-booking:hover { background: var(--sand); }
+  .bl-week-booking-addons { font-size: 11px; color: var(--teal-mid); font-weight: 600; margin-top: 1px; padding-left: 14px; }
+  .bl-week-day-empty { margin-top: 6px; font-size: 11.5px; color: #8A9490; }
+  .bl-cal-day { background: var(--white); border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 4px 7px; text-align: center; cursor: pointer; }
+  .bl-cal-day.selected { border-color: var(--teal-mid); background: var(--lagoon-soft); }
+  .bl-cal-day.today .bl-cal-daynum { color: var(--coral); }
+  .bl-cal-weekday { font-size: 9.5px; font-weight: 700; color: #8A9490; text-transform: uppercase; }
+  .bl-cal-daynum { font-size: 16px; font-weight: 700; color: var(--ink); margin: 2px 0 5px; font-family: 'SF Mono', 'Courier New', monospace; }
+  .bl-cal-badge { font-size: 10.5px; font-weight: 700; border-radius: 6px; padding: 3px 0; }
+  .bl-cal-badge.ok { background: var(--lagoon-soft); color: var(--teal-mid); }
+  .bl-cal-badge.low { background: #FDF0DA; color: #9A6B1E; }
+  .bl-cal-badge.none { background: var(--coral-soft); color: #A8492A; }
+
+  .bl-day-detail { background: var(--white); border-radius: 12px; border: 1px solid var(--line); padding: 16px; }
+  .bl-day-detail h3 { margin: 0 0 12px; font-size: 15px; color: var(--teal-deep); }
+  .bl-day-item-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .bl-day-addon-sizes { font-size: 10.5px; color: #8A9490; margin: 0 0 6px 20px; padding-left: 8px; border-left: 2px solid var(--line); }
+  .bl-day-addon-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0 5px 20px; border-left: 2px solid var(--line); margin-left: 6px; font-size: 12px; color: #5B6E68; }
+  .bl-day-item-row:last-child { border-bottom: none; }
+  .bl-day-item-avail { font-weight: 700; }
+  .bl-day-item-avail.low { color: #9A6B1E; }
+  .bl-day-item-avail.none { color: #A8492A; }
+  .bl-day-item-avail.ok { color: var(--teal-mid); }
+  .bl-day-booked-label { font-size: 11.5px; font-weight: 700; color: var(--teal-mid); text-transform: uppercase; letter-spacing: 0.03em; margin: 14px 0 6px; }
+  .bl-day-booked-row { font-size: 12.5px; color: #5B6E68; padding: 4px 0; }
+  .bl-day-booked-clickable { cursor: pointer; border-radius: 8px; }
+  .bl-day-booked-card { padding: 10px 12px; margin-bottom: 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--sand); }
+  .bl-day-booked-card:hover { border-color: var(--lagoon); }
+  .bl-day-booked-title { font-size: 13.5px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+  .bl-day-booked-meta { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #5B6E68; margin-top: 6px; }
+  .bl-day-booked-addons { font-size: 11px; color: var(--teal-mid); font-weight: 600; margin-top: 2px; padding-left: 16px; }
+
+  .bl-swatch-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .bl-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2.5px solid transparent; cursor: pointer; padding: 0; }
+  .bl-swatch.selected { border-color: var(--ink); box-shadow: 0 0 0 2px white inset; }
+
+  .bl-item-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; flex: 0 0 auto; }
+  .bl-piling-accent { position: absolute; top: 0; left: 0; right: 0; height: 4px; z-index: 3; }
+
+  .bl-cal-dots { display: flex; gap: 3px; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
+  .bl-cal-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+
+  .bl-day-item-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; vertical-align: middle; flex: 0 0 auto; }
+
+  .bl-profit-cards { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+  .bl-profit-card { background: var(--white); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .bl-profit-top { display: flex; align-items: center; margin-bottom: 8px; }
+  .bl-profit-name { font-weight: 700; font-size: 14.5px; }
+  .bl-profit-row { display: flex; justify-content: space-between; font-size: 12.5px; color: #5B6E68; padding: 3px 0; }
+  .bl-profit-row.bl-profit-total { font-weight: 700; font-size: 14px; color: var(--ink); border-top: 1px solid var(--line); margin-top: 4px; padding-top: 8px; }
+  .bl-profit-pos { color: var(--teal-mid); }
+  .bl-profit-neg { color: var(--coral); }
+  .bl-profit-summary { background: var(--teal-deep); color: var(--sand); border-radius: 12px; padding: 14px 16px; margin-bottom: 6px; }
+  .bl-chart-card { background: var(--white); border: 1.5px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 18px; }
+  .bl-chart-type-tabs { display: flex; gap: 4px; margin-bottom: 10px; background: var(--sand-dark); border-radius: 8px; padding: 3px; }
+  .bl-chart-type-tab { flex: 1; background: none; border: none; padding: 6px 0; font-size: 11.5px; font-weight: 700; color: #8A9490; border-radius: 6px; cursor: pointer; }
+  .bl-chart-type-tab.active { background: var(--white); color: var(--teal-deep); }
+  .bl-chart-legend { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .bl-chart-legend-item { display: flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; padding: 4px 8px; border-radius: 20px; border: 1.5px solid var(--line); background: none; color: #8A9490; cursor: pointer; }
+  .bl-chart-legend-item.active { background: var(--sand); }
+  .bl-chart-legend-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+  .bl-chart-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .bl-chart-scroll-inner { display: inline-block; min-width: 100%; }
+  .bl-profit-divider { border-top: 1px solid rgba(255,255,255,0.18); margin: 6px 0; }
+  .bl-profit-note { font-size: 10.5px; color: rgba(247,242,231,0.6); margin-top: 4px; text-align: right; }
+  .bl-profit-summary .bl-profit-row { color: rgba(247,242,231,0.8); }
+  .bl-profit-summary .bl-profit-row.bl-profit-total { color: white; border-top-color: rgba(247,242,231,0.25); }
+  .bl-profit-summary .bl-profit-pos { color: #A9E8DB; }
+  .bl-profit-summary .bl-profit-neg { color: #FFB199; }
+  .bl-expense-card { cursor: pointer; }
+
+  .bl-expense-section-label { font-size: 10px; font-weight: 700; color: #8A9490; text-transform: uppercase; letter-spacing: 0.03em; margin: 6px 0 2px; }
+  .bl-expense-lines { margin: 4px 0 8px; border-top: 1px solid var(--line); }
+  .bl-expense-line { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 2px; border-bottom: 1px solid var(--line); font-size: 12.5px; cursor: pointer; color: #5B6E68; }
+  .bl-expense-line:hover { background: var(--sand); }
+  .bl-expense-line-date { font-size: 10.5px; color: #8A9490; margin-left: 6px; }
+  .bl-qty-avail-note { font-size: 11px; font-weight: 700; margin-top: 4px; }
+  .bl-qty-avail-ok { color: var(--teal-mid); }
+  .bl-qty-avail-none { color: var(--coral); }
+  .bl-add-cost-btn { display: block; width: 100%; background: none; border: 1.5px dashed var(--line); color: var(--teal-mid); font-size: 12.5px; font-weight: 700; padding: 8px; border-radius: 8px; cursor: pointer; margin-top: 2px; }
+  .bl-add-cost-btn:hover { background: var(--sand); }
+
+  .bl-addon-picker { border: 1.5px solid var(--line); border-radius: 9px; padding: 6px 10px; background: var(--sand); max-height: 260px; overflow-y: auto; }
+  .bl-addon-block { border-bottom: 1px solid var(--line); padding: 6px 0; }
+  .bl-addon-block:last-child { border-bottom: none; }
+  .bl-addon-sizes { margin: 6px 0 4px 26px; display: flex; flex-direction: column; gap: 6px; }
+  .bl-size-line { display: flex; gap: 6px; align-items: center; }
+  .bl-size-select { flex: 1; padding: 6px 8px !important; font-size: 12.5px !important; }
+  .bl-size-qty { width: 54px !important; padding: 6px !important; font-size: 12.5px !important; }
+  .bl-size-remove { background: none; border: none; color: var(--coral); font-size: 18px; font-weight: 700; cursor: pointer; padding: 0 4px; line-height: 1; }
+  .bl-addon-add-size { margin: 2px 0 2px 26px; background: none; border: none; color: var(--teal-mid); font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline; }
+  .bl-addon-sizes-hint { font-size: 9.5px; opacity: 0.75; display: block; margin-top: 2px; }
+  .bl-addon-picker-empty { font-size: 12.5px; color: #8A9490; padding: 6px 2px; }
+  .bl-addon-picker-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 2px; border-bottom: 1px solid var(--line); gap: 8px; }
+  .bl-addon-picker-row:last-child { border-bottom: none; }
+  .bl-addon-picker-row label { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; flex: 1; text-transform: none; margin: 0; }
+  .bl-addon-picker-row input[type="checkbox"] { width: auto; accent-color: var(--teal-mid); }
+  .bl-addon-qty { width: 52px !important; padding: 5px 6px !important; font-size: 13px !important; }
+  .bl-addon-price { font-size: 12px; color: var(--teal-mid); font-weight: 700; white-space: nowrap; }
+  .bl-addon-avail { color: #8A9490; font-weight: 600; }
+  .bl-subtotal-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 9px 12px; background: var(--lagoon-soft); border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--teal-deep); }
+  .bl-deposit-check-row label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; text-transform: none; color: var(--ink); }
+  .bl-yoodlize-fee-field { background: var(--coral-soft); border-radius: 8px; padding: 10px 12px; margin-bottom: 11px; }
+  .bl-yoodlize-fee-field label { color: #A8492A; }
+  .bl-yoodlize-fee-field input { background: white; }
+  .bl-deposit-check-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--teal-mid); }
+  .bl-remaining-row { font-size: 12.5px; font-weight: 700; color: var(--teal-deep); background: var(--lagoon-soft); padding: 8px 12px; border-radius: 8px; margin: 2px 0 11px; }
+</style>
+</head>
+<body>
+<div id="root" class="bl-wrap"><p>Loading your rentals…</p></div>
+<button class="bl-fab" id="fab" title="New rental">+</button>
+
+<script>
+(function () {
+  var STEPS = [
+    { key: 'depositPaid', label: 'Reservation' },
+    { key: 'pickedUp', label: 'Picked up' },
+    { key: 'itemReturned', label: 'Returned/refunded' },
+  ];
+
+  var PALETTE = ['#27B9A1', '#A02237', '#5827B9', '#76A022', '#2764B9', '#A06B22', '#B927AD', '#22A02C', '#279BB9', '#A03C22', '#8F27B9', '#47A022', '#272DB9', '#A09B22', '#B92776', '#22A05C'];
+  var DEPOSIT_AMOUNT = 10;
+  var SAFETY_DEPOSIT_CAP = 150;
+  var YOODLIZE_FEE_RATE = 0.10;
+
+  var state = { inventory: [], addons: [], rentals: [], expenses: [], historicalAdjustments: [], tab: 'upcoming', error: '', view: 'rentals', weekStart: '', selectedDay: '', calendarMode: 'month', monthCursor: '', financeYear: new Date().getFullYear(), chartMetrics: ['revenue', 'profit', 'expenses', 'rentals'], chartItemFilter: '', showChart: false, chartType: 'line' };
+  var openPickerCloses = [];
+  function closeOtherPickers(exceptFn) {
+    openPickerCloses.slice().forEach(function (fn) { if (fn !== exceptFn) fn(); });
+  }
+  function registerOpenPicker(closeFn) {
+    if (openPickerCloses.indexOf(closeFn) === -1) openPickerCloses.push(closeFn);
+  }
+  function unregisterOpenPicker(closeFn) {
+    var idx = openPickerCloses.indexOf(closeFn);
+    if (idx !== -1) openPickerCloses.splice(idx, 1);
+  }
+
+  function uid() { return Math.random().toString(36).slice(2, 10); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
+  function fmtMoney(n) { var v = Number(n) || 0; var s = v.toFixed(2); if (s.endsWith('.00')) s = s.slice(0, -3); return '$' + s; }
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+  function parseISO(s) { var p = s.split('-'); return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])); }
+  function toISODate(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function addDays(dateStr, n) { var d = parseISO(dateStr); d.setDate(d.getDate() + n); return toISODate(d); }
+  function startOfWeek(dateStr) { var d = parseISO(dateStr); var offset = (d.getDay() + 6) % 7; d.setDate(d.getDate() - offset); return toISODate(d); }
+  function startOfMonth(dateStr) { var d = parseISO(dateStr); d.setDate(1); return toISODate(d); }
+  function addMonths(dateStr, n) { var d = parseISO(dateStr); d.setMonth(d.getMonth() + n); return toISODate(d); }
+  function fmtDate(d) {
+    if (!d) return '—';
+    var parts = d.split('-');
+    if (parts.length !== 3) return d;
+    var dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+  function fmtDateLong(d) {
+    var dt = parseISO(d);
+    return dt.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  }
+  function fmtTime(t) {
+    if (!t) return '';
+    var parts = t.split(':');
+    var h = Number(parts[0]), m = parts[1];
+    var ampm = h >= 12 ? 'pm' : 'am';
+    var h12 = h % 12; if (h12 === 0) h12 = 12;
+    return h12 + (m !== '00' ? ':' + m : '') + ampm;
+  }
+  function fmtTimeFull(t) {
+    if (!t) return '';
+    var parts = t.split(':');
+    var h = Number(parts[0]), m = parts[1];
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    var h12 = h % 12; if (h12 === 0) h12 = 12;
+    return h12 + ':' + m + ' ' + ampm;
+  }
+  function timePickerHtml(name, selected) {
+    var h24 = selected ? Number(selected.split(':')[0]) : null;
+    var min = selected ? Number(selected.split(':')[1]) : null;
+    var meridiem = h24 !== null ? (h24 >= 12 ? 'PM' : 'AM') : 'PM';
+    var h12 = h24 !== null ? (h24 % 12 === 0 ? 12 : h24 % 12) : 1;
+    var triggerLabel = selected ? fmtTimeFull(selected) : 'Select time';
+    return '<div class="bl-wheel-time-wrapper" data-time-name="' + name + '">' +
+      '<button type="button" class="bl-time-trigger">' + esc(triggerLabel) + ' <span class="bl-time-trigger-caret">▾</span></button>' +
+      '<div class="bl-wheel-time-panel" style="display:none;">' +
+      '<div class="bl-wheel-time">' +
+      '<div class="bl-wheel-highlight"></div>' +
+      '<div class="bl-wheel-col bl-wheel-hour" data-selected="' + h12 + '"></div>' +
+      '<div class="bl-wheel-col bl-wheel-min" data-selected="' + (min !== null ? (min < 10 ? '0' + min : '' + min) : '00') + '"></div>' +
+      '<div class="bl-wheel-col bl-wheel-ampm" data-selected="' + meridiem + '"></div>' +
+      '</div>' +
+      '<button type="button" class="bl-time-done-btn">Done</button>' +
+      '</div>' +
+      '<input type="hidden" name="' + name + '" value="' + esc(selected || '') + '">' +
+      '</div>';
+  }
+  var WHEEL_ITEM_H = 36;
+  function initWheelColumn(col, options, initialValue, onSettle) {
+    var idx = options.indexOf(initialValue);
+    if (idx === -1) idx = 0;
+    col.innerHTML = options.map(function (o) { return '<div class="bl-wheel-item">' + o + '</div>'; }).join('');
+    var items = col.querySelectorAll('.bl-wheel-item');
+    function markSelected(i) {
+      items.forEach(function (el, j) { el.classList.toggle('bl-wheel-selected', j === i); });
+    }
+    function scrollToIndex(i, smooth) {
+      col.scrollTo({ top: i * WHEEL_ITEM_H, behavior: smooth ? 'smooth' : 'auto' });
+      markSelected(i);
+    }
+    scrollToIndex(idx, false);
+    var settleTimer = null;
+    col.addEventListener('scroll', function () {
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(function () {
+        var i = Math.round(col.scrollTop / WHEEL_ITEM_H);
+        i = Math.max(0, Math.min(options.length - 1, i));
+        scrollToIndex(i, true);
+        onSettle(options[i]);
+      }, 100);
+    });
+    return { scrollToIndex: scrollToIndex };
+  }
+  function initWheelTimePicker(wrapper) {
+    var trigger = wrapper.querySelector('.bl-time-trigger');
+    var panel = wrapper.querySelector('.bl-wheel-time-panel');
+    var doneBtn = wrapper.querySelector('.bl-time-done-btn');
+    var hourCol = wrapper.querySelector('.bl-wheel-hour');
+    var minCol = wrapper.querySelector('.bl-wheel-min');
+    var ampmCol = wrapper.querySelector('.bl-wheel-ampm');
+    var hidden = wrapper.querySelector('input[type="hidden"]');
+    var hourOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(String);
+    var minOptions = []; for (var m = 0; m < 60; m += 5) minOptions.push(m < 10 ? '0' + m : '' + m);
+    var ampmOptions = ['AM', 'PM'];
+    var current = { h: hourCol.getAttribute('data-selected'), m: minCol.getAttribute('data-selected'), ap: ampmCol.getAttribute('data-selected') };
+    var wheelInited = false;
+    var hourColApi = null, minColApi = null, ampmColApi = null;
+    function updateHidden() {
+      var h12 = Number(current.h);
+      var h24 = h12 % 12; if (current.ap === 'PM') h24 += 12;
+      hidden.value = (h24 < 10 ? '0' + h24 : '' + h24) + ':' + current.m;
+      trigger.innerHTML = esc(fmtTimeFull(hidden.value)) + ' <span class="bl-time-trigger-caret">▾</span>';
+      hidden.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    wrapper._setTimeValue = function (timeStr24, opts) {
+      var parts = timeStr24.split(':');
+      var h24 = Number(parts[0]), m = Number(parts[1]);
+      var h12 = h24 % 12; if (h12 === 0) h12 = 12;
+      current.h = String(h12);
+      current.m = m < 10 ? '0' + m : '' + m;
+      current.ap = h24 >= 12 ? 'PM' : 'AM';
+      if (wheelInited) {
+        hourColApi.scrollToIndex(hourOptions.indexOf(current.h), true);
+        minColApi.scrollToIndex(minOptions.indexOf(current.m), true);
+        ampmColApi.scrollToIndex(ampmOptions.indexOf(current.ap), true);
+      } else {
+        hourCol.setAttribute('data-selected', current.h);
+        minCol.setAttribute('data-selected', current.m);
+        ampmCol.setAttribute('data-selected', current.ap);
+      }
+      hidden.value = timeStr24;
+      trigger.innerHTML = esc(fmtTimeFull(timeStr24)) + ' <span class="bl-time-trigger-caret">▾</span>';
+      if (!opts || !opts.silent) hidden.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    function expand() {
+      closeOtherPickers(collapse);
+      panel.style.display = '';
+      if (!wheelInited) {
+        wheelInited = true;
+        hourColApi = initWheelColumn(hourCol, hourOptions, current.h, function (v) { current.h = v; updateHidden(); });
+        minColApi = initWheelColumn(minCol, minOptions, current.m, function (v) { current.m = v; updateHidden(); });
+        ampmColApi = initWheelColumn(ampmCol, ampmOptions, current.ap, function (v) { current.ap = v; updateHidden(); });
+      }
+      document.addEventListener('mousedown', onOutsideClick);
+      registerOpenPicker(collapse);
+    }
+    function collapse() {
+      panel.style.display = 'none';
+      document.removeEventListener('mousedown', onOutsideClick);
+      unregisterOpenPicker(collapse);
+      if (wrapper._onClose) wrapper._onClose();
+    }
+    function onOutsideClick(e) {
+      if (!wrapper.contains(e.target)) collapse();
+    }
+    trigger.addEventListener('click', function () {
+      if (panel.style.display === 'none') expand(); else collapse();
+    });
+    doneBtn.addEventListener('click', collapse);
+  }
+
+  function dateRangePickerHtml(startDate, endDate) {
+    var label = (startDate && endDate) ? (fmtDate(startDate) + ' – ' + fmtDate(endDate)) : (startDate ? fmtDate(startDate) + ' – …' : 'Select dates');
+    return '<div class="bl-daterange-wrapper">' +
+      '<button type="button" class="bl-time-trigger">' + esc(label) + ' <span class="bl-time-trigger-caret">▾</span></button>' +
+      '<div class="bl-daterange-panel" style="display:none;">' +
+      '<div class="bl-mini-cal-nav"><button type="button" class="bl-mini-cal-nav-btn" data-dir="-1">‹</button>' +
+      '<span class="bl-mini-cal-month-label"></span>' +
+      '<button type="button" class="bl-mini-cal-nav-btn" data-dir="1">›</button></div>' +
+      '<div class="bl-mini-cal-grid"></div>' +
+      '<div class="bl-daterange-actions">' +
+      '<button type="button" class="bl-cancel-btn bl-daterange-reset">Reset</button>' +
+      '<button type="button" class="bl-save-btn bl-daterange-done">Done</button>' +
+      '</div>' +
+      '</div>' +
+      '<input type="hidden" name="startDate" value="' + esc(startDate || '') + '">' +
+      '<input type="hidden" name="endDate" value="' + esc(endDate || '') + '">' +
+      '</div>';
+  }
+
+  function initDateRangePicker(wrapper) {
+    var trigger = wrapper.querySelector('.bl-time-trigger');
+    var panel = wrapper.querySelector('.bl-daterange-panel');
+    var grid = wrapper.querySelector('.bl-mini-cal-grid');
+    var monthLabel = wrapper.querySelector('.bl-mini-cal-month-label');
+    var doneBtn = wrapper.querySelector('.bl-daterange-done');
+    var startHidden = wrapper.querySelector('input[name="startDate"]');
+    var endHidden = wrapper.querySelector('input[name="endDate"]');
+    var weekdayLabels = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+    var tempStart = startHidden.value || '';
+    var tempEnd = endHidden.value || '';
+    var initRef = tempStart ? parseISO(tempStart) : new Date();
+    var viewYear = initRef.getFullYear(), viewMonth = initRef.getMonth();
+    var inited = false;
+
+    function renderGrid() {
+      var first = new Date(viewYear, viewMonth, 1);
+      var startOffset = (first.getDay() + 6) % 7;
+      var daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+      monthLabel.textContent = first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      var html = weekdayLabels.map(function (w) { return '<div class="bl-mini-cal-wd">' + w + '</div>'; }).join('');
+      for (var i = 0; i < startOffset; i++) html += '<div class="bl-mini-cal-day bl-mini-cal-empty"></div>';
+      for (var d = 1; d <= daysInMonth; d++) {
+        var dateStr = toISODate(new Date(viewYear, viewMonth, d));
+        var inRange = tempStart && tempEnd && dateStr > tempStart && dateStr < tempEnd;
+        var isStart = dateStr === tempStart, isEnd = dateStr === tempEnd;
+        var cls = 'bl-mini-cal-day' + (inRange ? ' bl-mini-cal-inrange' : '') + (isStart ? ' bl-mini-cal-start' : '') + (isEnd ? ' bl-mini-cal-end' : '');
+        html += '<button type="button" class="' + cls + '" data-date="' + dateStr + '">' + d + '</button>';
+      }
+      grid.innerHTML = html;
+      grid.querySelectorAll('.bl-mini-cal-day:not(.bl-mini-cal-empty)').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var d = btn.getAttribute('data-date');
+          if (!tempStart || (tempStart && tempEnd) || d < tempStart) {
+            tempStart = d; tempEnd = '';
+          } else {
+            tempEnd = d;
+          }
+          startHidden.value = tempStart;
+          endHidden.value = tempEnd;
+          startHidden.dispatchEvent(new Event('change', { bubbles: true }));
+          renderGrid();
+          if (tempStart && tempEnd) {
+            trigger.innerHTML = esc(fmtDate(tempStart) + ' – ' + fmtDate(tempEnd)) + ' <span class="bl-time-trigger-caret">▾</span>';
+          } else {
+            trigger.innerHTML = esc(fmtDate(tempStart) + ' – …') + ' <span class="bl-time-trigger-caret">▾</span>';
+          }
+        });
+      });
+    }
+    function expand() {
+      closeOtherPickers(collapse);
+      panel.style.display = '';
+      if (!inited) { inited = true; renderGrid(); }
+      document.addEventListener('mousedown', onOutsideClick);
+      registerOpenPicker(collapse);
+    }
+    function collapse() {
+      panel.style.display = 'none';
+      document.removeEventListener('mousedown', onOutsideClick);
+      unregisterOpenPicker(collapse);
+    }
+    function onOutsideClick(e) {
+      if (!wrapper.contains(e.target)) collapse();
+    }
+    trigger.addEventListener('click', function () {
+      if (panel.style.display === 'none') expand(); else collapse();
+    });
+    doneBtn.addEventListener('click', collapse);
+    var resetBtn = wrapper.querySelector('.bl-daterange-reset');
+    resetBtn.addEventListener('click', function () {
+      tempStart = ''; tempEnd = '';
+      startHidden.value = ''; endHidden.value = '';
+      startHidden.dispatchEvent(new Event('change', { bubbles: true }));
+      trigger.innerHTML = 'Select dates <span class="bl-time-trigger-caret">▾</span>';
+      renderGrid();
+    });
+    wrapper.querySelectorAll('.bl-mini-cal-nav-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        viewMonth += Number(btn.getAttribute('data-dir'));
+        if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+        if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+        renderGrid();
+      });
+    });
+  }
+  function rentalDays(startDate, endDate, pickupTime, dropoffTime) {
+    if (!startDate || !endDate) return 1;
+    if (pickupTime && dropoffTime) {
+      var start = parseISO(startDate);
+      var sp = pickupTime.split(':');
+      start.setHours(Number(sp[0]) || 0, Number(sp[1]) || 0, 0, 0);
+      var end = parseISO(endDate);
+      var ep = dropoffTime.split(':');
+      end.setHours(Number(ep[0]) || 0, Number(ep[1]) || 0, 0, 0);
+      var hours = (end - start) / (1000 * 60 * 60);
+      if (hours <= 0) return 1;
+      return Math.ceil(hours / 24);
+    }
+    var s = parseISO(startDate), e = parseISO(endDate);
+    var diff = Math.round((e - s) / 86400000) + 1;
+    return diff > 0 ? diff : 1;
+  }
+
+  var LS_PREFIX = 'rental-log:';
+  function hasArtifactStorage() {
+    try { return !!(window.storage && typeof window.storage.get === 'function' && typeof window.storage.set === 'function'); }
+    catch (e) { return false; }
+  }
+  function lsGet(key) {
+    try { var raw = localStorage.getItem(LS_PREFIX + key); return raw ? JSON.parse(raw) : null; }
+    catch (e) { return null; }
+  }
+  function lsSet(key, value) {
+    try { localStorage.setItem(LS_PREFIX + key, JSON.stringify(value)); return true; }
+    catch (e) { return false; }
+  }
+
+  async function storageGet(key) {
+    if (hasArtifactStorage()) {
+      try {
+        var r = await window.storage.get(key, false);
+        if (r && r.value) return JSON.parse(r.value);
+        return null;
+      }
+      catch (e) { /* fall through to local storage */ }
+    }
+    return lsGet(key);
+  }
+  function sleep(ms) { return new Promise(function (res) { setTimeout(res, ms); }); }
+
+  var lastFailedSave = null;
+
+  async function storageSet(key, value, attempt) {
+    attempt = attempt || 0;
+    if (!hasArtifactStorage()) {
+      var ok = lsSet(key, value);
+      if (ok) {
+        showSaveToast();
+        if (state.error) { state.error = ''; lastFailedSave = null; render(); }
+      } else {
+        lastFailedSave = { key: key, value: value };
+        state.error = 'Could not save your last change (' + key + '). Your browser storage may be full or blocked.';
+        render();
+      }
+      return ok;
+    }
+    try {
+      await window.storage.set(key, JSON.stringify(value), false);
+      showSaveToast();
+      if (state.error) { state.error = ''; lastFailedSave = null; render(); }
+      return true;
+    }
+    catch (e) {
+      if (attempt < 3) {
+        await sleep(300 * Math.pow(2, attempt));
+        return storageSet(key, value, attempt + 1);
+      }
+      lastFailedSave = { key: key, value: value };
+      state.error = 'Could not save your last change (' + key + '). Tap retry below, or check your connection.';
+      render();
+      return false;
+    }
+  }
+
+  async function retryLastSave() {
+    if (!lastFailedSave) return;
+    var pending = lastFailedSave;
+    lastFailedSave = null;
+    await storageSet(pending.key, pending.value);
+  }
+
+  var toastTimer = null;
+  function showSaveToast() {
+    var t = document.getElementById('bl-save-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'bl-save-toast';
+      t.className = 'bl-save-toast';
+      document.body.appendChild(t);
+    }
+    t.textContent = 'Saved ✓';
+    t.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 1200);
+  }
+
+  async function load() {
+    var inv = await storageGet('inventory');
+    var addons = await storageGet('addons');
+    var rents = await storageGet('rentals');
+    var expenses = await storageGet('expenses');
+    var historicalAdjustments = await storageGet('historicalAdjustments');
+    if (!inv || inv.length === 0) {
+      inv = [
+        { id: uid(), name: 'Paddle Board', total: 7, price: 40, color: PALETTE[0], safetyDepositRate: 50 },
+      ];
+      await storageSet('inventory', inv);
+    }
+    var neededColorFix = false;
+    (inv || []).forEach(function (item, idx) {
+      if (!item.color) { item.color = PALETTE[idx % PALETTE.length]; neededColorFix = true; }
+      if (item.safetyDepositRate === undefined) {
+        item.safetyDepositRate = /movie/i.test(item.name) ? 100 : 50;
+        neededColorFix = true;
+      }
+    });
+    if (neededColorFix) { await storageSet('inventory', inv); await sleep(150); }
+    var extrasSeeded = await storageGet('extrasSeeded');
+    if (!extrasSeeded) {
+      if (!(inv || []).some(function (i) { return /movie/i.test(i.name); })) {
+        inv.push({ id: uid(), name: 'Movie Setup', total: 1, price: 60, color: PALETTE[inv.length % PALETTE.length], safetyDepositRate: 100 });
+        await storageSet('inventory', inv);
+        await sleep(150);
+      }
+      if (!(inv || []).some(function (i) { return /pizza/i.test(i.name); })) {
+        inv.push({ id: uid(), name: 'Pizza Oven', total: 1, price: 25, color: PALETTE[inv.length % PALETTE.length], safetyDepositRate: 0 });
+        await storageSet('inventory', inv);
+        await sleep(150);
+      }
+      if (!(inv || []).some(function (i) { return /fire ?pit/i.test(i.name); })) {
+        inv.push({ id: uid(), name: 'Fire Pit', total: 1, price: 25, color: PALETTE[inv.length % PALETTE.length], safetyDepositRate: 25 });
+        await storageSet('inventory', inv);
+        await sleep(150);
+      }
+      if (!(inv || []).some(function (i) { return /volleyball/i.test(i.name); })) {
+        inv.push({ id: uid(), name: 'Volleyball', total: 1, price: 15, color: PALETTE[inv.length % PALETTE.length], safetyDepositRate: 0 });
+        await storageSet('inventory', inv);
+        await sleep(150);
+      }
+      if (!(inv || []).some(function (i) { return /crossnet/i.test(i.name); })) {
+        inv.push({ id: uid(), name: 'CrossNet', total: 1, price: 15, color: PALETTE[inv.length % PALETTE.length], safetyDepositRate: 0 });
+        await storageSet('inventory', inv);
+        await sleep(150);
+      }
+      await storageSet('extrasSeeded', true);
+      await sleep(150);
+    }
+    var movieComponentsSeeded = await storageGet('movieComponentsSeeded');
+    if (!movieComponentsSeeded) {
+      var msItemForComponents = (inv || []).find(function (i) { return /movie/i.test(i.name); });
+      if (msItemForComponents && (!msItemForComponents.components || msItemForComponents.components.length === 0)) {
+        msItemForComponents.components = [
+          { id: uid(), name: 'Projector', price: 30 },
+          { id: uid(), name: 'Speaker', price: 15 },
+          { id: uid(), name: 'Microphones', price: 10 },
+          { id: uid(), name: 'Inflatable Screen', price: 20 },
+        ];
+        await storageSet('inventory', inv);
+        await sleep(150);
+      }
+      await storageSet('movieComponentsSeeded', true);
+      await sleep(150);
+    }
+    if (!addons) {
+      var paddleBoardItem = (inv || []).find(function (i) { return /paddle/i.test(i.name); });
+      var linkedIds = paddleBoardItem ? [paddleBoardItem.id] : [];
+      addons = [
+        { id: uid(), name: 'Life Jacket', price: 4, sizes: ['S', 'M', 'L', 'XL', 'XXL'], sizeStock: { S: 3, M: 3, L: 1, XL: 1, XXL: 1 }, itemIds: linkedIds },
+        { id: uid(), name: 'Electric Pump', price: 8, sizes: [], total: 1, itemIds: linkedIds },
+      ];
+      await storageSet('addons', addons);
+      await sleep(150);
+    }
+    var neededAddonFix = false;
+    (addons || []).forEach(function (a) {
+      if (a.sizes && a.sizes.length > 0) {
+        if (!a.sizeStock) {
+          var per = a.total ? Math.round((Number(a.total) || 0) / a.sizes.length) : 0;
+          a.sizeStock = {};
+          a.sizes.forEach(function (s) { a.sizeStock[s] = per; });
+          neededAddonFix = true;
+        }
+      } else if (a.total === undefined || a.total === null) {
+        a.total = 20; neededAddonFix = true;
+      }
+      if (!a.itemIds) { a.itemIds = []; neededAddonFix = true; }
+    });
+    if (neededAddonFix) await storageSet('addons', addons);
+    var neededRentalFix = false;
+    (rents || []).forEach(function (r) {
+      if (r.yoodlize && r.itemReturned && !r.depositRefunded) { r.depositRefunded = true; neededRentalFix = true; }
+    });
+    if (neededRentalFix) await storageSet('rentals', rents);
+
+    // Seed known historical costs and revenue totals — ONE TIME ONLY, so editing (including
+    // renaming) any of these afterward never gets silently re-added on a future load.
+    expenses = expenses || [];
+    historicalAdjustments = historicalAdjustments || [];
+    var neededExpenseYearFix = false;
+    var curYear = new Date().getFullYear();
+    expenses.forEach(function (e) { if (!e.year) { e.year = curYear; neededExpenseYearFix = true; } });
+    if (neededExpenseYearFix) { await storageSet('expenses', expenses); await sleep(150); }
+    var pbItem = (inv || []).find(function (i) { return /paddle/i.test(i.name); });
+    var msItem = (inv || []).find(function (i) { return /movie/i.test(i.name); });
+    var poItem = (inv || []).find(function (i) { return /pizza/i.test(i.name); });
+    var baseCostsSeeded = await storageGet('baseCostsSeeded');
+    if (!baseCostsSeeded) {
+      var seedChanged = false;
+
+      function ensureExpense(item, description, amount, year) {
+        if (!item) return;
+        var exists = expenses.some(function (e) { return e.itemId === item.id && e.description === description; });
+        if (!exists) {
+          expenses.push({ id: uid(), description: description, amount: amount, itemId: item.id, year: year });
+          seedChanged = true;
+        }
+      }
+      function ensureHistorical(item, year, rentalCount, revenue) {
+        if (!item) return;
+        var exists = historicalAdjustments.some(function (h) { return h.itemId === item.id && Number(h.year) === year; });
+        if (!exists) {
+          historicalAdjustments.push({ id: uid(), itemId: item.id, year: year, rentalCount: rentalCount, revenue: revenue });
+          seedChanged = true;
+        }
+      }
+
+      ensureExpense(pbItem, '7 Boards', 1312.90, 2025);
+      ensureExpense(pbItem, '4 Life Jackets', 65, 2025);
+      ensureExpense(pbItem, 'Electric Pump', 164.63, 2025);
+      ensureExpense(pbItem, 'Pump Bag', 26.85, 2025);
+      ensureExpense(msItem, 'Inflatable Screen', 90, 2025);
+      ensureExpense(msItem, 'Projector', 676.31, 2025);
+      ensureExpense(msItem, 'Speaker', 464.45, 2025);
+      ensureExpense(msItem, 'Hard Case', 64.46, 2025);
+      ensureExpense(msItem, 'Microphone', 94.37, 2025);
+
+      ensureHistorical(pbItem, 2025, 29, 462.53);
+      ensureHistorical(msItem, 2025, 12, 310.55);
+      ensureHistorical(poItem, 2025, 6, 169.02);
+      ensureHistorical(pbItem, 2026, 63, 1964.62);
+
+      if (seedChanged) { await storageSet('expenses', expenses); await storageSet('historicalAdjustments', historicalAdjustments); await sleep(150); }
+      await storageSet('baseCostsSeeded', true);
+      await sleep(150);
+    }
+
+    // Correct board count to match actual owned inventory (7, not the original default of 8),
+    // but only if it still shows that untouched default so we don't overwrite a manual edit
+    var invCountFix = false;
+    if (pbItem && Number(pbItem.total) === 8) { pbItem.total = 7; invCountFix = true; }
+    var addonInvFix = false;
+    var lifeJacketAddon = (addons || []).find(function (a) { return /life jacket/i.test(a.name); });
+    if (lifeJacketAddon) {
+      var currentLjTotal = (lifeJacketAddon.sizes || []).reduce(function (sum, s) { return sum + (Number((lifeJacketAddon.sizeStock || {})[s]) || 0); }, 0);
+      var stillOldDefault = (currentLjTotal === 12 || currentLjTotal === 4) && lifeJacketAddon.sizes.indexOf('XXL') === -1;
+      if (stillOldDefault) {
+        lifeJacketAddon.price = 4;
+        lifeJacketAddon.sizes = ['S', 'M', 'L', 'XL', 'XXL'];
+        lifeJacketAddon.sizeStock = { S: 3, M: 3, L: 1, XL: 1, XXL: 1 };
+        addonInvFix = true;
+      }
+    }
+    var electricPumpAddon = (addons || []).find(function (a) { return /electric pump/i.test(a.name); });
+    if (electricPumpAddon && Number(electricPumpAddon.total) === 4) {
+      electricPumpAddon.total = 1;
+      addonInvFix = true;
+    }
+    if (invCountFix) { await storageSet('inventory', inv); await sleep(150); }
+    if (addonInvFix) { await storageSet('addons', addons); await sleep(150); }
+
+    if (seedChanged) {
+      await storageSet('expenses', expenses);
+      await sleep(150);
+      await storageSet('historicalAdjustments', historicalAdjustments);
+    }
+
+    // Seed known current upcoming rentals (idempotent - matches on customer + item + start date)
+    rents = rents || [];
+    var rentalsSeedChanged = false;
+    function ensureRental(data) {
+      var exists = rents.some(function (r) {
+        return r.customerName === data.customerName && r.itemId === data.itemId && r.startDate === data.startDate;
+      });
+      if (!exists) {
+        rents.push(Object.assign({
+          id: uid(), depositPaid: true, pickedUp: false, itemReturned: false, depositRefunded: false,
+          cancelled: false, yoodlize: false, yoodlizeFee: 0, source: '', phone: undefined, notes: '', addons: [],
+        }, data));
+        rentalsSeedChanged = true;
+      }
+    }
+    if (pbItem) {
+      ensureRental({
+        customerName: 'Jerry', itemId: pbItem.id, qty: 2,
+        startDate: '2026-08-10', pickupTime: '14:00', endDate: '2026-08-13', dropoffTime: '14:00',
+        price: 90, depositAmount: 10, safetyDeposit: 100,
+      });
+      ensureRental({
+        customerName: 'Madi', itemId: pbItem.id, qty: 1,
+        startDate: '2026-08-11', pickupTime: '10:30', endDate: '2026-08-11', dropoffTime: '22:00',
+        price: 15, depositAmount: 10, safetyDeposit: 50,
+      });
+    }
+    if (rentalsSeedChanged) await storageSet('rentals', rents);
+
+    // One-time cleanup: remove duplicate expenses/historical entries created before de-dup checks existed
+    var dedupExpenseChanged = false;
+    var seenExpenseKeys = {};
+    var dedupedExpenses = [];
+    (expenses || []).forEach(function (e) {
+      var key = (e.itemId || '') + '::' + (e.description || '');
+      if (seenExpenseKeys[key]) { dedupExpenseChanged = true; return; }
+      seenExpenseKeys[key] = true;
+      dedupedExpenses.push(e);
+    });
+    if (dedupExpenseChanged) { expenses = dedupedExpenses; await storageSet('expenses', expenses); await sleep(150); }
+
+    var dedupHistChanged = false;
+    var seenHistKeys = {};
+    var dedupedHist = [];
+    (historicalAdjustments || []).forEach(function (h) {
+      var key = (h.itemId || '') + '::' + (h.year || '');
+      if (seenHistKeys[key]) { dedupHistChanged = true; return; }
+      seenHistKeys[key] = true;
+      dedupedHist.push(h);
+    });
+    if (dedupHistChanged) { historicalAdjustments = dedupedHist; await storageSet('historicalAdjustments', historicalAdjustments); await sleep(150); }
+
+    state.inventory = inv || [];
+    state.addons = addons || [];
+    state.rentals = rents || [];
+    state.expenses = expenses || [];
+    state.historicalAdjustments = historicalAdjustments || [];
+    var todayStr = toISODate(new Date());
+    state.weekStart = startOfWeek(todayStr);
+    state.monthCursor = startOfMonth(todayStr);
+    state.selectedDay = todayStr;
+    render();
+  }
+
+  function availabilityForDay(dateStr) {
+    var rows = state.inventory.map(function (item) {
+      var out = 0;
+      state.rentals.forEach(function (r) {
+        if (r.itemReturned || r.cancelled) return;
+        if (r.itemId !== item.id) return;
+        if (!r.startDate || !r.endDate) return;
+        if (dateStr >= r.startDate && dateStr <= r.endDate) out += Number(r.qty) || 0;
+      });
+      var avail = Math.max(item.total - out, 0);
+      return { id: item.id, name: item.name, total: item.total, out: out, avail: avail, color: item.color, hasComponents: !!(item.components && item.components.length > 0) };
+    });
+    var addonRows = state.addons.map(function (addon) {
+      var hasSizes = addon.sizes && addon.sizes.length > 0;
+      var total = addonStockTotal(addon);
+      var out = addonOutForDateRange(addon.id, undefined, dateStr, dateStr, null);
+      var sizes = null;
+      if (hasSizes) {
+        sizes = addon.sizes.map(function (s) {
+          var sTotal = addonSizeStock(addon, s);
+          var sOut = addonOutForDateRange(addon.id, s, dateStr, dateStr, null);
+          return { size: s, total: sTotal, out: sOut, avail: Math.max(sTotal - sOut, 0) };
+        });
+      }
+      return { id: addon.id, name: addon.name, total: total, out: out, avail: Math.max(total - out, 0), sizes: sizes, itemIds: addon.itemIds || [] };
+    });
+    var booked = state.rentals.filter(function (r) {
+      return r.startDate && r.endDate && dateStr >= r.startDate && dateStr <= r.endDate;
+    });
+    function relevantTimeForDay(r) {
+      if (dateStr === r.startDate && r.pickupTime) return r.pickupTime;
+      if (dateStr === r.endDate && r.dropoffTime) return r.dropoffTime;
+      return '00:00';
+    }
+    booked.sort(function (a, b) {
+      var aDone = !!(a.itemReturned || a.cancelled), bDone = !!(b.itemReturned || b.cancelled);
+      if (aDone !== bDone) return aDone ? 1 : -1;
+      return relevantTimeForDay(a).localeCompare(relevantTimeForDay(b));
+    });
+    return { rows: rows, addonRows: addonRows, booked: booked };
+  }
+
+  function outByItem() {
+    var map = {};
+    var todayStr = toISODate(new Date());
+    state.rentals.forEach(function (r) {
+      if (r.cancelled || r.itemReturned) return;
+      if (!r.startDate || !r.endDate) return;
+      if (todayStr >= r.startDate && todayStr <= r.endDate) map[r.itemId] = (map[r.itemId] || 0) + Number(r.qty || 0);
+    });
+    return map;
+  }
+
+  function getFiltered() {
+    var tab = state.tab;
+    var list = state.rentals.filter(function (r) {
+      var reserved = r.depositPaid || r.yoodlize;
+      if (tab === 'upcoming') return !r.cancelled && reserved && !r.pickedUp;
+      if (tab === 'out') return !r.cancelled && r.pickedUp && !r.itemReturned;
+      if (tab === 'refund') return !r.cancelled && r.itemReturned && !r.depositRefunded;
+      if (tab === 'done') return !r.cancelled && r.itemReturned && r.depositRefunded;
+      if (tab === 'cancelled') return !!r.cancelled;
+      return true;
+    });
+    var todayStr = toISODate(new Date());
+    function isSettled(r) { return !!r.cancelled || !!(r.itemReturned && r.depositRefunded); }
+    var newestFirst = tab === 'done' || tab === 'all';
+    list.sort(function (a, b) {
+      if (newestFirst) {
+        return (b.startDate || '').localeCompare(a.startDate || '');
+      }
+      var aSettled = isSettled(a), bSettled = isSettled(b);
+      if (aSettled !== bSettled) return aSettled ? 1 : -1;
+      var aActive = a.startDate && a.endDate && todayStr >= a.startDate && todayStr <= a.endDate;
+      var bActive = b.startDate && b.endDate && todayStr >= b.startDate && todayStr <= b.endDate;
+      if (aActive && !bActive) return -1;
+      if (!aActive && bActive) return 1;
+      return (a.startDate || '').localeCompare(b.startDate || '');
+    });
+    return list;
+  }
+
+  function counts() {
+    var reservedRentals = state.rentals.filter(function (r) { return r.depositPaid || r.yoodlize; });
+    return {
+      upcoming: reservedRentals.filter(function (r) { return !r.cancelled && !r.pickedUp; }).length,
+      out: state.rentals.filter(function (r) { return !r.cancelled && r.pickedUp && !r.itemReturned; }).length,
+      refund: state.rentals.filter(function (r) { return !r.cancelled && r.itemReturned && !r.depositRefunded; }).length,
+      done: state.rentals.filter(function (r) { return !r.cancelled && r.itemReturned && r.depositRefunded; }).length,
+      cancelled: state.rentals.filter(function (r) { return !!r.cancelled; }).length,
+      all: state.rentals.length,
+    };
+  }
+
+  function amountToCollect(r) {
+    var due = Number(r.price || 0) - Number(r.depositAmount || 0);
+    var safety = Number(r.safetyDeposit) || 0;
+    return due + safety;
+  }
+
+  function nextAction(r) {
+    if (r.cancelled) return null;
+    if (!r.depositPaid && !r.yoodlize) return { key: 'depositPaid', label: 'Reservation deposit paid (' + fmtMoney(r.depositAmount) + ')' };
+    if (!r.pickedUp) return { key: 'pickedUp', label: 'Picked up' };
+    if (!r.itemReturned) return { key: 'itemReturned', label: 'Returned/refunded' };
+    return null;
+  }
+
+  function addonsSummary(r) {
+    if (!r.addons || r.addons.length === 0) return '';
+    return r.addons.map(function (a) {
+      return (a.qty > 1 ? a.qty + 'x ' : '') + a.name + (a.size ? ' (' + a.size + ')' : '');
+    }).join(', ');
+  }
+
+  function rentalItemLabel(r, item, fallbackName) {
+    if (r.components && r.components.length > 0 && item && item.components) {
+      var isFullSetup = r.components.length === item.components.length;
+      if (isFullSetup) return esc(item.name);
+      var names = r.components.map(function (cid) {
+        var c = item.components.find(function (x) { return x.id === cid; });
+        return c ? c.name : null;
+      }).filter(Boolean);
+      if (names.length > 0) return esc(names.join(' + '));
+    }
+    return esc(r.qty) + 'x ' + esc(item ? item.name : (fallbackName || 'Item'));
+  }
+
+  function addonOut(addonId, excludeRentalId, size) {
+    var out = 0;
+    state.rentals.forEach(function (r) {
+      if (excludeRentalId && r.id === excludeRentalId) return;
+      if (!r.pickedUp || r.itemReturned) return;
+      (r.addons || []).forEach(function (a) {
+        if (a.addonId !== addonId) return;
+        if (size !== undefined && a.size !== size) return;
+        out += Number(a.qty) || 0;
+      });
+    });
+    return out;
+  }
+
+  function addonOutForDateRange(addonId, size, startDate, endDate, excludeRentalId) {
+    var out = 0;
+    if (!startDate || !endDate) return 0;
+    state.rentals.forEach(function (r) {
+      if (excludeRentalId && r.id === excludeRentalId) return;
+      if (r.cancelled || r.itemReturned) return;
+      if (!r.startDate || !r.endDate) return;
+      if (r.endDate < startDate || r.startDate > endDate) return;
+      (r.addons || []).forEach(function (a) {
+        if (a.addonId !== addonId) return;
+        if (size !== undefined && a.size !== size) return;
+        out += Number(a.qty) || 0;
+      });
+    });
+    return out;
+  }
+
+  function rentalDateTimeRange(r) {
+    var startDT = (r.startDate || '') + 'T' + (r.pickupTime || '00:00');
+    var endDT = (r.endDate || '') + 'T' + (r.dropoffTime || '23:59');
+    return { start: startDT, end: endDT };
+  }
+  function rentalsOverlapPrecise(r1, r2) {
+    var a = rentalDateTimeRange(r1), b = rentalDateTimeRange(r2);
+    return a.start < b.end && b.start < a.end;
+  }
+  function itemOutForRental(itemId, candidateRental, excludeRentalId) {
+    var out = 0;
+    state.rentals.forEach(function (r) {
+      if (excludeRentalId && r.id === excludeRentalId) return;
+      if (r.cancelled || r.itemReturned) return;
+      if (r.itemId !== itemId) return;
+      if (!r.startDate || !r.endDate) return;
+      if (rentalsOverlapPrecise(r, candidateRental)) out += Number(r.qty) || 0;
+    });
+    return out;
+  }
+
+  function itemShortfallDays(itemId, startDate, endDate, requestedQty, excludeRentalId) {
+    if (!startDate || !endDate) return [];
+    var item = state.inventory.find(function (i) { return i.id === itemId; });
+    if (!item) return [];
+    var shortfalls = [];
+    var d = startDate;
+    var guard = 0;
+    while (d <= endDate && guard < 730) {
+      guard++;
+      var out = 0;
+      state.rentals.forEach(function (r) {
+        if (excludeRentalId && r.id === excludeRentalId) return;
+        if (r.cancelled || r.itemReturned) return;
+        if (r.itemId !== itemId) return;
+        if (!r.startDate || !r.endDate) return;
+        if (d >= r.startDate && d <= r.endDate) out += Number(r.qty) || 0;
+      });
+      var avail = Math.max(item.total - out, 0);
+      if (avail < requestedQty) shortfalls.push({ date: d, avail: avail });
+      d = addDays(d, 1);
+    }
+    return shortfalls;
+  }
+
+  function itemFreeUpTime(itemId, dateStr, requestedQty, excludeRentalId) {
+    var item = state.inventory.find(function (i) { return i.id === itemId; });
+    if (!item) return null;
+    var touching = state.rentals.filter(function (r) {
+      if (excludeRentalId && r.id === excludeRentalId) return false;
+      if (r.cancelled || r.itemReturned) return false;
+      if (r.itemId !== itemId) return false;
+      if (!r.startDate || !r.endDate) return false;
+      return dateStr >= r.startDate && dateStr <= r.endDate;
+    });
+    var baseOut = touching.reduce(function (sum, r) { return sum + (Number(r.qty) || 0); }, 0);
+    var endingToday = touching.filter(function (r) { return r.endDate === dateStr && r.dropoffTime; });
+    if (endingToday.length === 0) return null;
+    endingToday.sort(function (a, b) { return a.dropoffTime.localeCompare(b.dropoffTime); });
+    var runningOut = baseOut;
+    for (var i = 0; i < endingToday.length; i++) {
+      runningOut -= Number(endingToday[i].qty) || 0;
+      var availAfter = Math.max(item.total - runningOut, 0);
+      if (availAfter >= requestedQty) {
+        return { time: endingToday[i].dropoffTime, avail: availAfter };
+      }
+    }
+    return null;
+  }
+
+  function itemAvailableUntilTime(itemId, dateStr, requestedQty, excludeRentalId) {
+    var item = state.inventory.find(function (i) { return i.id === itemId; });
+    if (!item) return null;
+    var touching = state.rentals.filter(function (r) {
+      if (excludeRentalId && r.id === excludeRentalId) return false;
+      if (r.cancelled || r.itemReturned) return false;
+      if (r.itemId !== itemId) return false;
+      if (!r.startDate || !r.endDate) return false;
+      return dateStr >= r.startDate && dateStr <= r.endDate;
+    });
+    var ongoingOut = touching.filter(function (r) { return r.startDate !== dateStr; }).reduce(function (sum, r) { return sum + (Number(r.qty) || 0); }, 0);
+    var availNow = Math.max(item.total - ongoingOut, 0);
+    if (availNow < requestedQty) return null;
+    var startingToday = touching.filter(function (r) { return r.startDate === dateStr && r.pickupTime; });
+    if (startingToday.length === 0) return null;
+    startingToday.sort(function (a, b) { return a.pickupTime.localeCompare(b.pickupTime); });
+    return { time: startingToday[0].pickupTime, avail: availNow };
+  }
+
+  function componentOutForDateRange(itemId, componentId, startDate, endDate, excludeRentalId) {
+    var out = 0;
+    if (!startDate || !endDate) return 0;
+    state.rentals.forEach(function (r) {
+      if (excludeRentalId && r.id === excludeRentalId) return;
+      if (r.cancelled || r.itemReturned) return;
+      if (r.itemId !== itemId) return;
+      if (!r.startDate || !r.endDate) return;
+      if (r.endDate < startDate || r.startDate > endDate) return;
+      var usesComponent = r.components ? r.components.indexOf(componentId) !== -1 : true;
+      if (usesComponent) out += 1;
+    });
+    return out;
+  }
+
+  function availableComponentIds(item, startDate, endDate, excludeRentalId) {
+    if (!item || !item.components) return [];
+    return item.components.filter(function (c) {
+      return componentOutForDateRange(item.id, c.id, startDate, endDate, excludeRentalId) === 0;
+    }).map(function (c) { return c.id; });
+  }
+
+  function addonStockTotal(addon) {
+    if (addon.sizes && addon.sizes.length > 0) {
+      var sum = 0;
+      addon.sizes.forEach(function (s) { sum += Number((addon.sizeStock || {})[s]) || 0; });
+      return sum;
+    }
+    return Number(addon.total) || 0;
+  }
+
+  function addonSizeStock(addon, size) {
+    return Number((addon.sizeStock || {})[size]) || 0;
+  }
+
+  function addonAppliesTo(addon, itemId) {
+    return !addon.itemIds || addon.itemIds.length === 0 || addon.itemIds.indexOf(itemId) !== -1;
+  }
+
+  function rentalYear(r) {
+    return r.startDate ? Number(r.startDate.slice(0, 4)) : null;
+  }
+  function revenueForItem(itemId, year) {
+    var total = 0;
+    state.rentals.forEach(function (r) {
+      if (r.itemId !== itemId) return;
+      if (year && rentalYear(r) !== year) return;
+      if (r.cancelled) {
+        total += r.depositPaid ? (Number(r.depositAmount) || 0) : 0;
+      } else if (r.pickedUp) {
+        total += Number(r.price) || 0;
+      }
+    });
+    return total;
+  }
+  function revenueForItemUpToYear(itemId, year) {
+    if (!year) return revenueForItem(itemId, null) + historicalRevenueForItem(itemId, null);
+    var total = 0;
+    state.rentals.forEach(function (r) {
+      if (r.itemId !== itemId) return;
+      var ry = rentalYear(r);
+      if (!ry || ry > year) return;
+      if (r.cancelled) {
+        total += r.depositPaid ? (Number(r.depositAmount) || 0) : 0;
+      } else if (r.pickedUp) {
+        total += Number(r.price) || 0;
+      }
+    });
+    state.historicalAdjustments.forEach(function (h) {
+      if (h.itemId !== itemId) return;
+      if (Number(h.year) > year) return;
+      total += Number(h.revenue) || 0;
+    });
+    return total;
+  }
+  function yoodlizeFeesForItem(itemId, year) {
+    var total = 0;
+    state.rentals.forEach(function (r) {
+      if (r.itemId !== itemId || !r.yoodlize || r.cancelled || !r.pickedUp) return;
+      if (year && rentalYear(r) !== year) return;
+      total += Number(r.yoodlizeFee) || 0;
+    });
+    return total;
+  }
+  function rentalCountForItem(itemId, year) {
+    var count = 0;
+    state.rentals.forEach(function (r) {
+      if (r.itemId !== itemId || r.cancelled || !r.pickedUp) return;
+      if (year && rentalYear(r) !== year) return;
+      count++;
+    });
+    return count;
+  }
+  function cancellationCountForItem(itemId, year) {
+    var count = 0;
+    state.rentals.forEach(function (r) {
+      if (r.itemId !== itemId || !r.cancelled) return;
+      if (year && rentalYear(r) !== year) return;
+      count++;
+    });
+    return count;
+  }
+  function cancellationRevenueForItem(itemId, year) {
+    var total = 0;
+    state.rentals.forEach(function (r) {
+      if (r.itemId !== itemId || !r.cancelled) return;
+      if (year && rentalYear(r) !== year) return;
+      total += r.depositPaid ? (Number(r.depositAmount) || 0) : 0;
+    });
+    return total;
+  }
+  function historicalAdjustmentsForItem(itemId, year) {
+    return state.historicalAdjustments.filter(function (h) {
+      if (h.itemId !== itemId) return false;
+      if (year && Number(h.year) !== year) return false;
+      return true;
+    });
+  }
+  function historicalRentalCountForItem(itemId, year) {
+    var count = 0;
+    historicalAdjustmentsForItem(itemId, year).forEach(function (h) { count += Number(h.rentalCount) || 0; });
+    return count;
+  }
+  function historicalRevenueForItem(itemId, year) {
+    var total = 0;
+    historicalAdjustmentsForItem(itemId, year).forEach(function (h) { total += Number(h.revenue) || 0; });
+    return total;
+  }
+  function expensesForItem(itemId, year) {
+    var total = 0;
+    state.expenses.forEach(function (e) {
+      if (e.itemId !== itemId) return;
+      if (year && e.year && Number(e.year) > year) return;
+      total += Number(e.amount) || 0;
+    });
+    return total;
+  }
+  function generalExpenses(year) {
+    var total = 0;
+    state.expenses.forEach(function (e) {
+      if (e.itemId) return;
+      if (year && e.year && Number(e.year) > year) return;
+      total += Number(e.amount) || 0;
+    });
+    return total;
+  }
+  function financeYearsAvailable() {
+    var years = {};
+    var thisYear = new Date().getFullYear();
+    years[thisYear] = true;
+    state.rentals.forEach(function (r) { var y = rentalYear(r); if (y) years[y] = true; });
+    state.expenses.forEach(function (e) { if (e.year) years[Number(e.year)] = true; });
+    return Object.keys(years).map(Number).sort(function (a, b) { return b - a; });
+  }
+
+  function render() {
+    var root = document.getElementById('root');
+    var out = outByItem();
+    var c = counts();
+    var filtered = getFiltered();
+
+    var html = '';
+    html += '<div class="bl-header"><div><h1 class="bl-display">Rental Log</h1>' +
+      '<div class="bl-tag">' + (hasArtifactStorage() ? 'Synced via Claude' : 'Saved on this device') + '</div></div>' +
+      '</div>';
+
+    if (state.error) html += '<div class="bl-banner">' + esc(state.error) + (lastFailedSave ? ' <button type="button" class="bl-retry-btn" data-action="retry-save">Retry</button>' : '') + '</div>';
+
+    html += '<div class="bl-section-label">Inventory</div>';
+    html += '<div class="bl-dock">';
+    state.inventory.forEach(function (item) {
+      var o = out[item.id] || 0;
+      var avail = Math.max(item.total - o, 0);
+      var pct = item.total > 0 ? Math.min(100, (o / item.total) * 100) : 0;
+      html += '<div class="bl-piling" data-item-id="' + item.id + '" data-action="edit-item">' +
+        '<div class="bl-piling-accent" style="background:' + (item.color || 'var(--lagoon)') + '"></div>' +
+        '<div class="bl-item-name">' + esc(item.name) + '</div>' +
+        '<div class="bl-count">' + avail + '<small> / ' + item.total + '</small></div>' +
+        '<div class="bl-sub">' + o + ' booked today</div>' +
+        '<div class="bl-price-tag">' + fmtMoney(item.price) + '/day</div></div>';
+    });
+    html += '<div class="bl-piling bl-add-item" data-action="add-item">+ Add<br>item type</div>';
+    html += '</div>';
+
+    html += '<div class="bl-section-label">Add-ons</div>';
+    html += '<div class="bl-addon-row">';
+    var todayStrForAddons = toISODate(new Date());
+    state.addons.forEach(function (a) {
+      var out = addonOutForDateRange(a.id, undefined, todayStrForAddons, todayStrForAddons, null);
+      var total = addonStockTotal(a);
+      var avail = Math.max(total - out, 0);
+      var pct = total > 0 ? Math.min(100, (out / total) * 100) : 0;
+      var appliesLabel = (!a.itemIds || a.itemIds.length === 0) ? 'All items' :
+        a.itemIds.map(function (id) { var it = state.inventory.find(function (i) { return i.id === id; }); return it ? it.name : null; }).filter(Boolean).join(', ');
+      var sizeBreakdown = '';
+      if (a.sizes && a.sizes.length > 0) {
+        sizeBreakdown = '<div class="bl-addon-size-breakdown">' + a.sizes.map(function (s) {
+          var sOut = addonOutForDateRange(a.id, s, todayStrForAddons, todayStrForAddons, null);
+          var sTotal = addonSizeStock(a, s);
+          var sAvail = Math.max(sTotal - sOut, 0);
+          return esc(s) + ' ' + sAvail + '/' + sTotal;
+        }).join(' · ') + '</div>';
+      }
+      html += '<div class="bl-piling bl-addon-piling" data-action="edit-addon" data-addon-id="' + a.id + '">' +
+        '<div class="bl-item-name">' + esc(a.name) + '</div>' +
+        '<div class="bl-count">' + avail + '<small> / ' + total + '</small></div>' +
+        '<div class="bl-sub">' + out + ' booked today</div>' +
+        sizeBreakdown +
+        '<div class="bl-price-tag">' + fmtMoney(a.price) + '/day</div>' +
+        (appliesLabel ? '<div class="bl-addon-applies">' + esc(appliesLabel) + '</div>' : '') +
+        '</div>';
+    });
+    html += '<div class="bl-piling bl-add-item" data-action="add-addon">+ Add<br>add-on</div>';
+    html += '</div>';
+
+    html += '<div class="bl-view-toggle">' +
+      '<button class="bl-view-btn' + (state.view === 'rentals' ? ' active' : '') + '" data-view="rentals">Rentals</button>' +
+      '<button class="bl-view-btn' + (state.view === 'calendar' ? ' active' : '') + '" data-view="calendar">Calendar</button>' +
+      '<button class="bl-view-btn' + (state.view === 'finances' ? ' active' : '') + '" data-view="finances">Finances</button>' +
+      '</div>';
+
+    if (state.view === 'calendar') {
+      html += renderCalendar();
+    } else if (state.view === 'finances') {
+      html += renderFinances();
+    } else {
+      var tabs = [['upcoming', 'Upcoming'], ['out', 'Out now'], ['done', 'Completed'], ['cancelled', 'Cancelled'], ['all', 'All']];
+      html += '<div class="bl-tabs">';
+      tabs.forEach(function (t) {
+        html += '<button class="bl-tab' + (state.tab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + ' <span class="bl-tab-count">' + c[t[0]] + '</span></button>';
+      });
+      html += '</div>';
+
+      html += '<div class="bl-cards">';
+      if (filtered.length === 0) {
+        html += '<div class="bl-empty"><div class="bl-display">Nothing here yet</div><div>New rentals you add will show up in the right tab automatically.</div></div>';
+      }
+      filtered.forEach(function (r) {
+        var item = state.inventory.find(function (i) { return i.id === r.itemId; });
+        var itemName = item ? item.name : (r.itemName || 'Item');
+        var addonsText = addonsSummary(r);
+        html += '<div class="bl-card">';
+        html += '<div class="bl-card-top"><div><div class="bl-card-title bl-card-title-clickable" data-action="view-rental" data-id="' + r.id + '">' + esc(r.customerName || 'Unnamed customer') + '</div>' +
+          '<div class="bl-card-meta">' + (item ? '<span class="bl-item-dot" style="background:' + item.color + '"></span>' : '') + rentalItemLabel(r, item, r.itemName) + (r.source ? ' · ' + esc(r.source) : '') + '</div>' +
+          (addonsText ? '<div class="bl-card-addons">+ ' + esc(addonsText) + '</div>' : '') +
+          '</div>' +
+          '<div class="bl-card-dates">' + fmtDate(r.startDate) + (r.pickupTime ? ' ' + fmtTime(r.pickupTime) : '') + ' → ' + fmtDate(r.endDate) + (r.dropoffTime ? ' ' + fmtTime(r.dropoffTime) : '') + '</div></div>';
+        html += '<div class="bl-card-money">Total <b>' + fmtMoney(r.price) + '</b> · Safety deposit <b>' + fmtMoney(r.safetyDeposit) + '</b>' +
+          (!r.pickedUp && !r.cancelled ? ' · Collect <b>' + fmtMoney(amountToCollect(r)) + '</b>' : '') +
+          (r.yoodlize ? ' · <b>Yoodlize</b>' + (Number(r.yoodlizeFee) > 0 ? ' (fee ' + fmtMoney(r.yoodlizeFee) + ')' : '') : '') +
+          (r.notes ? ' · ' + esc(r.notes) : '') + '</div>';
+
+        html += renderRentalStatusBlock(r, true);
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
+    root.innerHTML = html;
+    bindEvents();
+  }
+
+  function renderRentalStatusBlock(r, includeEditButton) {
+    var html = '';
+    if (r.cancelled) {
+      var keptAmt = r.depositPaid ? (Number(r.depositAmount) || 0) : 0;
+      html += '<div class="bl-cancelled-banner">Cancelled' + (keptAmt > 0 ? ' — kept ' + fmtMoney(keptAmt) + ' non-refundable reservation deposit' : '') + '</div>';
+    } else {
+      html += '<div class="bl-stepper">';
+      STEPS.forEach(function (s, i) {
+        var literalDone = !!r[s.key];
+        var done = literalDone || (s.key === 'depositPaid' && r.yoodlize);
+        var clickable = literalDone && s.key !== 'depositPaid';
+        html += '<div class="bl-step"><div class="bl-dot' + (done ? ' done' : '') + (clickable ? ' bl-dot-clickable' : '') + '"' +
+          (clickable ? ' data-action="undo-step" data-id="' + r.id + '" data-step="' + s.key + '" title="Tap to undo"' : '') + '>' + (done ? '✓' : '') + '</div>' +
+          '<div class="bl-step-label' + (done ? ' done' : '') + '">' + s.label + '</div></div>';
+        if (i < STEPS.length - 1) html += '<div class="bl-step-line' + (done ? ' done' : '') + '"></div>';
+      });
+      html += '</div>';
+    }
+    html += '<div class="bl-card-actions">';
+    if (includeEditButton) html += '<button class="bl-edit-btn" data-action="edit-rental" data-id="' + r.id + '">Edit details</button>';
+    if (r.cancelled) {
+      html += '<span class="bl-done-tag bl-cancelled-tag">Cancelled</span>';
+    } else {
+      var lastStepIdx = -1;
+      for (var si = STEPS.length - 1; si >= 1; si--) { if (r[STEPS[si].key]) { lastStepIdx = si; break; } }
+      if (lastStepIdx !== -1) html += '<button class="bl-edit-btn bl-cancel-btn-link" data-action="undo-step" data-id="' + r.id + '" data-step="' + STEPS[lastStepIdx].key + '">Undo "' + esc(STEPS[lastStepIdx].label) + '"</button>';
+      if (!r.itemReturned) html += '<button class="bl-edit-btn bl-cancel-btn-link" data-action="cancel-rental" data-id="' + r.id + '">Cancel rental</button>';
+      var na = nextAction(r);
+      if (na) html += '<button class="bl-action-btn" data-action="advance" data-id="' + r.id + '" data-step="' + na.key + '">' + esc(na.label) + '</button>';
+      else html += '<span class="bl-done-tag">All settled ✓</span>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderCalendar() {
+    var html = '';
+    html += '<div class="bl-view-toggle" style="margin-bottom:12px;">' +
+      '<button class="bl-view-btn' + (state.calendarMode === 'week' ? ' active' : '') + '" data-cal-mode="week">Week</button>' +
+      '<button class="bl-view-btn' + (state.calendarMode === 'month' ? ' active' : '') + '" data-cal-mode="month">Month</button>' +
+      '</div>';
+    html += state.calendarMode === 'month' ? renderMonthGrid() : renderWeekGrid();
+    html += renderDayDetail();
+    return html;
+  }
+
+  function dayCellDots(dateStr) {
+    var info = availabilityForDay(dateStr);
+    var dots = '';
+    info.booked.forEach(function (r) {
+      var item = state.inventory.find(function (i) { return i.id === r.itemId; });
+      var color = item ? item.color : 'var(--lagoon)';
+      dots += '<span class="bl-cal-dot" style="background:' + color + '" title="' + esc(r.customerName || (item ? item.name : 'Item')) + '"></span>';
+    });
+    return dots;
+  }
+
+  function dayCellChips(dateStr, maxShow) {
+    var info = availabilityForDay(dateStr);
+    var chips = info.booked.slice(0, maxShow).map(function (r) {
+      var item = state.inventory.find(function (i) { return i.id === r.itemId; });
+      var color = item ? item.color : 'var(--lagoon)';
+      var done = r.cancelled || r.itemReturned;
+      return '<div class="bl-cal-chip' + (done ? ' bl-cal-chip-done' : '') + '" style="background:' + color + '" title="' + esc(r.customerName || 'Unnamed') + '">' + esc(r.customerName || 'Unnamed') + '</div>';
+    }).join('');
+    var extra = info.booked.length - maxShow;
+    if (extra > 0) chips += '<div class="bl-cal-chip-more">+' + extra + ' more</div>';
+    return chips;
+  }
+
+  function renderWeekGrid() {
+    var todayStr = toISODate(new Date());
+    var weekEnd = addDays(state.weekStart, 6);
+    var html = '';
+
+    html += '<div class="bl-cal-nav">' +
+      '<button class="bl-cal-nav-btn" data-action="week-prev">‹</button>' +
+      '<div><div class="bl-cal-label">' + fmtDate(state.weekStart) + ' – ' + fmtDate(weekEnd) + '</div></div>' +
+      '<button class="bl-cal-nav-btn" data-action="week-next">›</button>' +
+      '</div>';
+    html += '<div style="text-align:center;margin-bottom:10px;"><button class="bl-cal-today-btn" data-action="week-today">Jump to today</button></div>';
+
+    html += '<div class="bl-week-list">';
+    for (var i = 0; i < 7; i++) {
+      var dateStr = addDays(state.weekStart, i);
+      var dt = parseISO(dateStr);
+      var info = availabilityForDay(dateStr);
+      var dayLabel = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      html += '<div class="bl-week-day-card' + (dateStr === state.selectedDay ? ' selected' : '') + (dateStr === todayStr ? ' today' : '') + '" data-day="' + dateStr + '">';
+      html += '<div class="bl-week-day-head"><span class="bl-week-day-date">' + dayLabel + '</span>' +
+        '<span class="bl-cal-dots">' + (dayCellDots(dateStr) || '') + '</span></div>';
+      if (info.booked.length > 0) {
+        html += '<div class="bl-week-day-bookings">';
+        info.booked.forEach(function (r) {
+          var item = state.inventory.find(function (x) { return x.id === r.itemId; });
+          var addonsText = addonsSummary(r);
+          var statusTag = r.cancelled ? ' <span class="bl-booking-status bl-booking-status-cancelled">(cancelled)</span>' : (r.itemReturned ? ' <span class="bl-booking-status bl-booking-status-done">(completed)</span>' : '');
+          var pickupLine = r.pickupTime ? fmtDate(r.startDate) + ' at ' + fmtTime(r.pickupTime) : fmtDate(r.startDate);
+          var dropoffLine = r.dropoffTime ? fmtDate(r.endDate) + ' at ' + fmtTime(r.dropoffTime) : fmtDate(r.endDate);
+          html += '<div class="bl-day-booked-card bl-day-booked-clickable" data-rental-id="' + r.id + '">' +
+            '<div class="bl-day-booked-title">' + (item ? '<span class="bl-day-item-dot" style="background:' + item.color + '"></span>' : '') +
+            rentalItemLabel(r, item, r.itemName) + ' — ' + esc(r.customerName || 'Unnamed customer') + (r.source ? ' (' + esc(r.source) + ')' : '') + statusTag + '</div>' +
+            (addonsText ? '<div class="bl-day-booked-addons">+ ' + esc(addonsText) + '</div>' : '') +
+            '<div class="bl-day-booked-meta"><span>Pick up: ' + pickupLine + '</span><span>Drop off: ' + dropoffLine + '</span>' +
+            (r.notes ? '<span>Notes: ' + esc(r.notes) + '</span>' : '') + '</div>' +
+            '</div>';
+        });
+        html += '</div>';
+      } else if (info.rows.length > 0) {
+        html += '<div class="bl-week-day-empty">Nothing rented</div>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function computeWeekBars(weekDates) {
+    var weekStart = weekDates[0], weekEnd = weekDates[6];
+    var items = [];
+    state.rentals.forEach(function (r) {
+      if (!r.startDate || !r.endDate) return;
+      if (r.endDate < weekStart || r.startDate > weekEnd) return;
+      var barStartDate = r.startDate < weekStart ? weekStart : r.startDate;
+      var barEndDate = r.endDate > weekEnd ? weekEnd : r.endDate;
+      items.push({
+        r: r,
+        startCol: weekDates.indexOf(barStartDate),
+        endCol: weekDates.indexOf(barEndDate),
+        continuesLeft: r.startDate < weekStart,
+        continuesRight: r.endDate > weekEnd,
+      });
+    });
+    items.sort(function (a, b) { return a.startCol - b.startCol || (b.endCol - b.startCol) - (a.endCol - a.startCol); });
+    var laneEnds = [];
+    items.forEach(function (item) {
+      var lane = -1;
+      for (var i = 0; i < laneEnds.length; i++) { if (laneEnds[i] < item.startCol) { lane = i; break; } }
+      if (lane === -1) { lane = laneEnds.length; laneEnds.push(-1); }
+      laneEnds[lane] = item.endCol;
+      item.lane = lane;
+    });
+    return items;
+  }
+
+  function renderMonthGrid() {
+    var weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    var todayStr = toISODate(new Date());
+    var monthStart = startOfMonth(state.monthCursor);
+    var monthDate = parseISO(monthStart);
+    var monthLabel = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    var gridStart = startOfWeek(monthStart);
+    var html = '';
+
+    html += '<div class="bl-cal-nav">' +
+      '<button class="bl-cal-nav-btn" data-action="month-prev">‹</button>' +
+      '<div><button type="button" class="bl-cal-label bl-cal-label-btn" data-action="open-month-picker">' + monthLabel + '</button></div>' +
+      '<button class="bl-cal-nav-btn" data-action="month-next">›</button>' +
+      '</div>';
+    html += '<div style="text-align:center;margin-bottom:10px;"><button class="bl-cal-today-btn" data-action="month-today">Jump to today</button></div>';
+
+    html += '<div class="bl-cal-month-weekday-row">';
+    weekdays.forEach(function (w) { html += '<div class="bl-cal-month-weekday">' + w + '</div>'; });
+    html += '</div>';
+
+    var curMonthIdx = monthDate.getMonth();
+    var MAX_LANES = 3;
+    html += '<div class="bl-cal-month-weeks">';
+    for (var week = 0; week < 6; week++) {
+      var weekDates = [];
+      for (var d = 0; d < 7; d++) weekDates.push(addDays(gridStart, week * 7 + d));
+      var bars = computeWeekBars(weekDates);
+
+      html += '<div class="bl-cal-week-row">';
+      weekDates.forEach(function (dateStr, idx) {
+        html += '<div class="bl-cal-day-bg' + (dateStr === state.selectedDay ? ' selected' : '') + (dateStr === todayStr ? ' today' : '') + '" data-day="' + dateStr + '" style="grid-column:' + (idx + 1) + ';grid-row:1 / -1;"></div>';
+      });
+      for (var col = 1; col <= 6; col++) {
+        html += '<div class="bl-cal-col-divider" style="grid-column:' + col + ';grid-row:1 / -1;"></div>';
+      }
+      weekDates.forEach(function (dateStr, idx) {
+        var dt = parseISO(dateStr);
+        var inMonth = dt.getMonth() === curMonthIdx;
+        html += '<div class="bl-cal-daynum-cell' + (inMonth ? '' : ' bl-cal-day-muted') + (dateStr === todayStr ? ' today' : '') + '" data-day="' + dateStr + '" style="grid-column:' + (idx + 1) + ';grid-row:1;">' + dt.getDate() + '</div>';
+      });
+      bars.forEach(function (item) {
+        if (item.lane >= MAX_LANES) return;
+        var item_r = item.r;
+        var itemInv = state.inventory.find(function (i) { return i.id === item_r.itemId; });
+        var color = itemInv ? itemInv.color : 'var(--lagoon)';
+        var done = item_r.cancelled || item_r.itemReturned;
+        var itemLabel = rentalItemLabel(item_r, itemInv, item_r.itemName);
+        var label = esc(item_r.customerName || 'Unnamed') + ' - ' + itemLabel;
+        html += '<div class="bl-cal-bar' + (done ? ' bl-cal-bar-done' : '') + (item.continuesLeft ? ' bl-cal-bar-contleft' : '') + (item.continuesRight ? ' bl-cal-bar-contright' : '') + '" data-rental-id="' + item_r.id + '" style="grid-column:' + (item.startCol + 1) + ' / ' + (item.endCol + 2) + ';grid-row:' + (item.lane + 2) + ';background:' + color + ';" title="' + label + '">' + label + '</div>';
+      });
+      for (var c = 0; c < 7; c++) {
+        var hiddenCount = bars.filter(function (b) { return b.lane >= MAX_LANES && c >= b.startCol && c <= b.endCol; }).length;
+        if (hiddenCount > 0) {
+          html += '<div class="bl-cal-more-cell" data-action="show-day-overflow" data-day="' + weekDates[c] + '" style="grid-column:' + (c + 1) + ';grid-row:' + (MAX_LANES + 2) + ';">+' + hiddenCount + '</div>';
+        }
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderDayDetail() {
+    if (!state.selectedDay) return '';
+    var html = '';
+    var detail = availabilityForDay(state.selectedDay);
+    var rentedLabel = state.selectedDay === toISODate(new Date()) ? 'Rented today' : 'Rented ' + fmtDate(state.selectedDay);
+    html += '<div class="bl-day-detail"><h3>' + fmtDateLong(state.selectedDay) + '</h3>';
+    if (detail.rows.length === 0) {
+      html += '<div class="bl-day-booked-row">Add an item type to see availability here.</div>';
+    }
+    detail.rows.forEach(function (row) {
+      var cls = row.avail === 0 ? 'none' : (row.avail === row.total ? 'ok' : (row.total > 0 && row.avail <= Math.max(1, Math.ceil(row.total * 0.2)) ? 'low' : 'ok'));
+      var label = row.hasComponents ? row.name + ' (full setup)' : row.name;
+      html += '<div class="bl-day-item-row"><span>' + (row.color ? '<span class="bl-day-item-dot" style="background:' + row.color + '"></span>' : '') + esc(label) + '</span>' +
+        '<span class="bl-day-item-avail ' + cls + '">' + row.avail + ' / ' + row.total + ' available</span></div>';
+      var linkedAddons = detail.addonRows.filter(function (a) { return a.itemIds.length === 0 || a.itemIds.indexOf(row.id) !== -1; });
+      linkedAddons.forEach(function (a) {
+        var aCls = a.avail === 0 ? 'none' : (a.avail === a.total ? 'ok' : (a.total > 0 && a.avail <= Math.max(1, Math.ceil(a.total * 0.2)) ? 'low' : 'ok'));
+        html += '<div class="bl-day-addon-row"><span>' + esc(a.name) + '</span>' +
+          '<span class="bl-day-item-avail ' + aCls + '">' + a.avail + ' / ' + a.total + '</span></div>';
+        if (a.sizes) {
+          html += '<div class="bl-day-addon-sizes">' + a.sizes.map(function (s) { return esc(s.size) + ' ' + s.avail + '/' + s.total; }).join(' · ') + '</div>';
+        }
+      });
+    });
+    var unlinkedAddons = detail.addonRows.filter(function (a) {
+      return a.itemIds.length > 0 && !detail.rows.some(function (row) { return a.itemIds.indexOf(row.id) !== -1; });
+    });
+    if (unlinkedAddons.length > 0) {
+      html += '<div class="bl-day-booked-label">Other add-ons</div>';
+      unlinkedAddons.forEach(function (a) {
+        var aCls = a.avail === 0 ? 'none' : (a.avail === a.total ? 'ok' : (a.total > 0 && a.avail <= Math.max(1, Math.ceil(a.total * 0.2)) ? 'low' : 'ok'));
+        html += '<div class="bl-day-item-row"><span>' + esc(a.name) + '</span>' +
+          '<span class="bl-day-item-avail ' + aCls + '">' + a.avail + ' / ' + a.total + ' available</span></div>';
+        if (a.sizes) {
+          html += '<div class="bl-day-addon-sizes">' + a.sizes.map(function (s) { return esc(s.size) + ' ' + s.avail + '/' + s.total; }).join(' · ') + '</div>';
+        }
+      });
+    }
+    if (detail.booked.length > 0) {
+      html += '<div class="bl-day-booked-label">' + rentedLabel + '</div>';
+      detail.booked.forEach(function (r) {
+        var item = state.inventory.find(function (i) { return i.id === r.itemId; });
+        var addonsText = addonsSummary(r);
+        var statusTag = r.cancelled ? ' <span class="bl-booking-status bl-booking-status-cancelled">(cancelled)</span>' : (r.itemReturned ? ' <span class="bl-booking-status bl-booking-status-done">(completed)</span>' : '');
+        var pickupLine = r.pickupTime ? fmtDate(r.startDate) + ' at ' + fmtTime(r.pickupTime) : fmtDate(r.startDate);
+        var dropoffLine = r.dropoffTime ? fmtDate(r.endDate) + ' at ' + fmtTime(r.dropoffTime) : fmtDate(r.endDate);
+        html += '<div class="bl-day-booked-card bl-day-booked-clickable" data-rental-id="' + r.id + '">' +
+          '<div class="bl-day-booked-title">' + (item ? '<span class="bl-day-item-dot" style="background:' + item.color + '"></span>' : '') +
+          rentalItemLabel(r, item, r.itemName) + ' — ' + esc(r.customerName || 'Unnamed customer') + (r.source ? ' (' + esc(r.source) + ')' : '') + statusTag + '</div>' +
+          (addonsText ? '<div class="bl-day-booked-addons">+ ' + esc(addonsText) + '</div>' : '') +
+          '<div class="bl-day-booked-meta"><span>Pick up: ' + pickupLine + '</span><span>Drop off: ' + dropoffLine + '</span>' +
+          (r.notes ? '<span>Notes: ' + esc(r.notes) + '</span>' : '') + '</div>' +
+          '</div>';
+      });
+    } else if (detail.rows.length > 0) {
+      html += '<div class="bl-day-booked-label">' + rentedLabel + '</div>';
+      html += '<div class="bl-day-booked-row">Nothing rented on this day.</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function computeMonthlyStats(itemFilterId) {
+    var earliestYear = null, latestYear = null;
+    function trackYear(y) {
+      y = Number(y);
+      if (!y) return;
+      if (earliestYear === null || y < earliestYear) earliestYear = y;
+      if (latestYear === null || y > latestYear) latestYear = y;
+    }
+    state.rentals.forEach(function (r) { if (r.startDate) trackYear(r.startDate.slice(0, 4)); });
+    state.expenses.forEach(function (e) { if (e.year) trackYear(e.year); });
+    state.historicalAdjustments.forEach(function (h) { if (h.year) trackYear(h.year); });
+    var now = new Date();
+    trackYear(now.getFullYear());
+    if (earliestYear === null) { earliestYear = now.getFullYear(); latestYear = now.getFullYear(); }
+    if (latestYear < now.getFullYear()) latestYear = now.getFullYear();
+
+    var months = [];
+    for (var y = earliestYear; y <= latestYear; y++) {
+      var maxMonth = (y === now.getFullYear()) ? now.getMonth() : 11;
+      for (var m = 0; m <= maxMonth; m++) {
+        months.push({ year: y, month: m, revenue: 0, expenses: 0, profit: 0, rentals: 0, label: new Date(y, m, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }) });
+      }
+    }
+    var monthIndex = {};
+    months.forEach(function (mo, i) { monthIndex[mo.year + '-' + mo.month] = i; });
+
+    state.rentals.forEach(function (r) {
+      if (!r.pickedUp || r.cancelled || !r.startDate) return;
+      if (itemFilterId && r.itemId !== itemFilterId) return;
+      var d = parseISO(r.startDate);
+      var key = d.getFullYear() + '-' + d.getMonth();
+      var idx = monthIndex[key];
+      if (idx === undefined) return;
+      months[idx].revenue += Number(r.price) || 0;
+      months[idx].rentals += 1;
+    });
+    state.expenses.forEach(function (e) {
+      if (!e.year) return;
+      if (itemFilterId && e.itemId !== itemFilterId) return;
+      for (var m = 0; m < 12; m++) {
+        var idx = monthIndex[Number(e.year) + '-' + m];
+        if (idx !== undefined) months[idx].expenses += (Number(e.amount) || 0) / 12;
+      }
+    });
+    state.historicalAdjustments.forEach(function (h) {
+      if (!h.year) return;
+      if (itemFilterId && h.itemId !== itemFilterId) return;
+      for (var m = 0; m < 12; m++) {
+        var idx = monthIndex[Number(h.year) + '-' + m];
+        if (idx !== undefined) {
+          months[idx].revenue += (Number(h.revenue) || 0) / 12;
+          months[idx].rentals += (Number(h.rentalCount) || 0) / 12;
+        }
+      }
+    });
+    months.forEach(function (mo) { mo.profit = mo.revenue - mo.expenses; });
+    return months;
+  }
+
+  function renderFinanceChart(months, activeMetrics, itemFilterId, chartType) {
+    var W = Math.max(months.length * 46, 320);
+    var H = 180;
+    var padL = 34, padR = 10, padT = 10, padB = 22;
+    var chartW = W - padL - padR, chartH = H - padT - padB;
+    var metricDefs = {
+      revenue: { color: '#27B9A1', label: 'Revenue' },
+      profit: { color: '#2764B9', label: 'Profit' },
+      expenses: { color: '#A02237', label: 'Expenses (avg/mo)' },
+      rentals: { color: '#A06B22', label: '# Rentals' }
+    };
+    var dollarMetrics = ['revenue', 'profit', 'expenses'].filter(function (k) { return activeMetrics.indexOf(k) !== -1; });
+    var countActive = activeMetrics.indexOf('rentals') !== -1;
+    var maxDollar = 1, minDollar = 0;
+    months.forEach(function (mo) {
+      dollarMetrics.forEach(function (k) {
+        if (mo[k] > maxDollar) maxDollar = mo[k];
+        if (mo[k] < minDollar) minDollar = mo[k];
+      });
+    });
+    var maxCount = 1;
+    months.forEach(function (mo) { if (mo.rentals > maxCount) maxCount = mo.rentals; });
+
+    function xFor(i) { return padL + (months.length <= 1 ? chartW / 2 : (i / (months.length - 1)) * chartW); }
+    function yForDollar(v) { return padT + chartH - ((v - minDollar) / (maxDollar - minDollar || 1)) * chartH; }
+    function yForCount(v) { return padT + chartH - (v / maxCount) * chartH; }
+
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" style="display:block;">';
+    var zeroY = yForDollar(0);
+    svg += '<line x1="' + padL + '" y1="' + zeroY + '" x2="' + (padL + chartW) + '" y2="' + zeroY + '" stroke="var(--line)" stroke-width="1"></line>';
+
+    if (chartType === 'bar') {
+      var slotW = months.length > 1 ? chartW / months.length : chartW;
+      var barGroupW = slotW * 0.7;
+      var barW = dollarMetrics.length > 0 ? barGroupW / dollarMetrics.length : 0;
+      months.forEach(function (mo, i) {
+        var slotCenter = xFor(i);
+        var groupStart = slotCenter - barGroupW / 2;
+        dollarMetrics.forEach(function (k, ki) {
+          var barX = groupStart + ki * barW;
+          var v = mo[k];
+          var y0 = yForDollar(0), y1 = yForDollar(v);
+          var top = Math.min(y0, y1), h = Math.abs(y1 - y0);
+          svg += '<rect x="' + barX + '" y="' + top + '" width="' + Math.max(barW - 1, 1) + '" height="' + Math.max(h, 0.5) + '" fill="' + metricDefs[k].color + '" rx="1"></rect>';
+        });
+      });
+      if (countActive) {
+        var ptsBar = months.map(function (mo, i) { return xFor(i) + ',' + yForCount(mo.rentals); }).join(' ');
+        svg += '<polyline points="' + ptsBar + '" fill="none" stroke="' + metricDefs.rentals.color + '" stroke-width="2" stroke-dasharray="4,3"></polyline>';
+      }
+    } else if (chartType === 'area') {
+      dollarMetrics.forEach(function (k) {
+        var linePts = months.map(function (mo, i) { return xFor(i) + ',' + yForDollar(mo[k]); });
+        var areaPts = linePts.slice();
+        areaPts.push(xFor(months.length - 1) + ',' + zeroY);
+        areaPts.push(xFor(0) + ',' + zeroY);
+        svg += '<polygon points="' + areaPts.join(' ') + '" fill="' + metricDefs[k].color + '" fill-opacity="0.18" stroke="none"></polygon>';
+        svg += '<polyline points="' + linePts.join(' ') + '" fill="none" stroke="' + metricDefs[k].color + '" stroke-width="2"></polyline>';
+      });
+      if (countActive) {
+        var ptsArea = months.map(function (mo, i) { return xFor(i) + ',' + yForCount(mo.rentals); }).join(' ');
+        svg += '<polyline points="' + ptsArea + '" fill="none" stroke="' + metricDefs.rentals.color + '" stroke-width="2" stroke-dasharray="4,3"></polyline>';
+      }
+    } else {
+      dollarMetrics.forEach(function (k) {
+        var pts = months.map(function (mo, i) { return xFor(i) + ',' + yForDollar(mo[k]); }).join(' ');
+        svg += '<polyline points="' + pts + '" fill="none" stroke="' + metricDefs[k].color + '" stroke-width="2"></polyline>';
+      });
+      if (countActive) {
+        var pts2 = months.map(function (mo, i) { return xFor(i) + ',' + yForCount(mo.rentals); }).join(' ');
+        svg += '<polyline points="' + pts2 + '" fill="none" stroke="' + metricDefs.rentals.color + '" stroke-width="2" stroke-dasharray="4,3"></polyline>';
+      }
+    }
+    months.forEach(function (mo, i) {
+      if (i % Math.ceil(months.length / 8) !== 0 && i !== months.length - 1) return;
+      svg += '<text x="' + xFor(i) + '" y="' + (H - 6) + '" font-size="8" fill="#8A9490" text-anchor="middle">' + esc(mo.label) + '</text>';
+    });
+    svg += '</svg>';
+
+    var legendHtml = Object.keys(metricDefs).map(function (k) {
+      var active = activeMetrics.indexOf(k) !== -1;
+      return '<button type="button" class="bl-chart-legend-item' + (active ? ' active' : '') + '" data-metric="' + k + '" style="' + (active ? 'color:' + metricDefs[k].color + ';border-color:' + metricDefs[k].color + ';' : '') + '">' +
+        '<span class="bl-chart-legend-dot" style="background:' + (active ? metricDefs[k].color : '#ccc') + '"></span>' + metricDefs[k].label + '</button>';
+    }).join('');
+
+    return '<div class="bl-chart-legend">' + legendHtml + '</div>' +
+      '<div class="bl-chart-scroll"><div class="bl-chart-scroll-inner">' + svg + '</div></div>';
+  }
+
+  function renderFinances() {
+    var html = '';
+    var totalRevenue = 0, totalRevenueToDate = 0, totalItemExpenses = 0, totalYoodlizeFees = 0, totalRentalCount = 0, totalCancelCount = 0, totalHistProfit = 0;
+    var year = state.financeYear;
+
+    html += '<div class="bl-cal-nav">' +
+      '<button class="bl-cal-nav-btn" data-action="finance-year-prev">‹</button>' +
+      '<div><button type="button" class="bl-cal-label bl-cal-label-btn" data-action="open-finance-year-picker">' + (year ? year : 'All time') + '</button></div>' +
+      '<button class="bl-cal-nav-btn" data-action="finance-year-next">›</button>' +
+      '</div>';
+    html += '<div style="text-align:center;margin-bottom:16px;display:flex;gap:10px;justify-content:center;">' +
+      '<button class="bl-cal-today-btn" data-action="finance-year-all">' + (year ? 'View all time' : 'Back to ' + new Date().getFullYear()) + '</button>' +
+      '<button class="bl-cal-today-btn" data-action="toggle-chart">' + (state.showChart ? 'Hide trends' : 'View trends') + '</button>' +
+      '</div>';
+
+    if (state.showChart) {
+      html += '<div class="bl-section-label">Trends over time</div>';
+      html += '<div class="bl-chart-type-tabs">' +
+        ['line', 'bar'].map(function (t) {
+          return '<button type="button" class="bl-chart-type-tab' + (state.chartType === t ? ' active' : '') + '" data-chart-type="' + t + '">' + t.charAt(0).toUpperCase() + t.slice(1) + '</button>';
+        }).join('') + '</div>';
+      html += '<div class="bl-field" style="margin-bottom:8px;"><select id="bl-chart-item-filter">' +
+        '<option value=""' + (!state.chartItemFilter ? ' selected' : '') + '>Whole business</option>' +
+        state.inventory.map(function (i) { return '<option value="' + i.id + '"' + (state.chartItemFilter === i.id ? ' selected' : '') + '>' + esc(i.name) + '</option>'; }).join('') +
+        '</select></div>';
+      var chartMonths = computeMonthlyStats(state.chartItemFilter || null);
+      html += '<div class="bl-chart-card">' + renderFinanceChart(chartMonths, state.chartMetrics, state.chartItemFilter, state.chartType) + '</div>';
+    }
+
+    html += '<div class="bl-section-label">Rental item sections</div>';
+    html += '<div class="bl-profit-cards">';
+    state.inventory.forEach(function (item) {
+      var rev = revenueForItem(item.id, year);
+      var yoodlizeFees = yoodlizeFeesForItem(item.id, year);
+      var rentalCount = rentalCountForItem(item.id, year);
+      var histCount = historicalRentalCountForItem(item.id, year);
+      var histRevenue = historicalRevenueForItem(item.id, year);
+      var revenueToDate = revenueForItemUpToYear(item.id, year);
+      var cancelCount = cancellationCountForItem(item.id, year);
+      var cancelRevenue = cancellationRevenueForItem(item.id, year);
+      var itemExpenses = state.expenses.filter(function (e) { return e.itemId === item.id && (!year || !e.year || Number(e.year) <= year); });
+      itemExpenses.sort(function (a, b) { return (Number(a.year) || 0) - (Number(b.year) || 0); });
+      var exp = expensesForItem(item.id, year);
+      var profitThisYearItem = (rev + histRevenue) - yoodlizeFees - exp;
+      var profit = revenueToDate - yoodlizeFees - exp;
+      totalRevenue += rev + histRevenue; totalRevenueToDate += revenueToDate; totalItemExpenses += exp; totalYoodlizeFees += yoodlizeFees; totalRentalCount += rentalCount + histCount; totalCancelCount += cancelCount; totalHistProfit += histRevenue;
+      html += '<div class="bl-profit-card">' +
+        '<div class="bl-profit-top"><span class="bl-item-dot" style="background:' + (item.color || 'var(--lagoon)') + '"></span><span class="bl-profit-name">' + esc(item.name) + '</span></div>' +
+        '<div class="bl-profit-row"><span># of rentals</span><span>' + (rentalCount + histCount) + '</span></div>' +
+        (cancelCount > 0 ? '<div class="bl-profit-row"><span>Cancellations</span><span>' + cancelCount + (cancelRevenue > 0 ? ' (kept ' + fmtMoney(cancelRevenue) + ')' : '') + '</span></div>' : '') +
+        '<div class="bl-profit-row"><span>Revenue this year</span><span>' + fmtMoney(rev + histRevenue) + '</span></div>' +
+        (yoodlizeFees > 0 ? '<div class="bl-profit-row"><span>Yoodlize fees</span><span>-' + fmtMoney(yoodlizeFees) + '</span></div>' : '');
+      if (itemExpenses.length > 0) {
+        html += '<div class="bl-expense-section-label">Expenses</div>';
+        html += '<div class="bl-expense-lines">';
+        itemExpenses.forEach(function (e) {
+          html += '<div class="bl-expense-line" data-action="edit-expense" data-id="' + e.id + '">' +
+            '<span>' + esc(e.description || 'Purchase') + (e.year ? '<span class="bl-expense-line-date">' + e.year + '</span>' : '') + '</span>' +
+            '<span>' + fmtMoney(e.amount) + '</span></div>';
+        });
+        html += '</div>';
+      }
+      var histEntries = historicalAdjustmentsForItem(item.id, year);
+      if (histEntries.length > 0) {
+        html += '<div class="bl-expense-section-label">Manual totals</div>';
+        html += '<div class="bl-expense-lines">';
+        histEntries.forEach(function (h) {
+          html += '<div class="bl-expense-line" data-action="edit-historical" data-id="' + h.id + '">' +
+            '<span>' + h.year + ' manual total (' + (Number(h.rentalCount) || 0) + ' rentals)</span>' +
+            '<span>' + fmtMoney(h.revenue) + '</span></div>';
+        });
+        html += '</div>';
+      }
+      html += '<button type="button" class="bl-add-cost-btn" data-action="add-expense-for" data-item-id="' + item.id + '">+ Add expense</button>';
+      html += '<button type="button" class="bl-add-cost-btn" data-action="add-historical-for" data-item-id="' + item.id + '">+ Add manual total</button>';
+      html += '<div class="bl-profit-row" style="margin-top:8px;"><span>Total expenses</span><span>' + fmtMoney(exp) + '</span></div>' +
+        '<div class="bl-profit-divider"></div>' +
+        '<div class="bl-profit-row"><span>Profit this year</span><span class="' + (profitThisYearItem < 0 ? 'bl-profit-neg' : 'bl-profit-pos') + '">' + fmtMoney(profitThisYearItem) + '</span></div>' +
+        '<div class="bl-profit-row bl-profit-total"><span>Overall profit</span><span class="' + (profit < 0 ? 'bl-profit-neg' : 'bl-profit-pos') + '">' + fmtMoney(profit) + '</span></div>' +
+        '</div>';
+    });
+
+    var overhead = generalExpenses(year);
+    html += '</div>';
+
+    var grandProfit = totalRevenueToDate - totalYoodlizeFees - totalItemExpenses - overhead;
+    var profitThisYear = totalRevenue - totalYoodlizeFees - totalItemExpenses - overhead;
+    html += '<div class="bl-profit-summary">' +
+      '<div class="bl-profit-row"><span>Total rentals</span><span>' + totalRentalCount + '</span></div>' +
+      (totalCancelCount > 0 ? '<div class="bl-profit-row"><span>Total cancellations</span><span>' + totalCancelCount + '</span></div>' : '') +
+      '<div class="bl-profit-row"><span>Revenue this year</span><span>' + fmtMoney(totalRevenue) + '</span></div>' +
+      (totalYoodlizeFees > 0 ? '<div class="bl-profit-row"><span>Yoodlize fees</span><span>-' + fmtMoney(totalYoodlizeFees) + '</span></div>' : '') +
+      '<div class="bl-profit-row"><span>Total expenses</span><span>-' + fmtMoney(totalItemExpenses) + '</span></div>' +
+      (overhead !== 0 ? '<div class="bl-profit-row"><span>General overhead</span><span>-' + fmtMoney(overhead) + '</span></div>' : '') +
+      '<div class="bl-profit-divider"></div>' +
+      '<div class="bl-profit-row"><span>Profit this year</span><span class="' + (profitThisYear < 0 ? 'bl-profit-neg' : 'bl-profit-pos') + '">' + fmtMoney(profitThisYear) + '</span></div>' +
+      '<div class="bl-profit-row bl-profit-total"><span>Overall profit</span><span class="' + (grandProfit < 0 ? 'bl-profit-neg' : 'bl-profit-pos') + '">' + fmtMoney(grandProfit) + '</span></div>' +
+      '</div>';
+
+    return html;
+  }
+
+  function setupDragReorder(containerSelector, itemAttr, getArray, storageKey) {
+    var container = document.querySelector(containerSelector);
+    if (!container) return;
+    var LONG_PRESS_MS = 650;
+    var MOVE_CANCEL_THRESHOLD = 8;
+
+    Array.from(container.querySelectorAll('.bl-piling[' + itemAttr + ']')).forEach(function (tile) {
+      var pressTimer = null;
+      var moved = false;
+      var startX = 0, startY = 0;
+
+      function onMoveCheck(ev) {
+        var dx = Math.abs(ev.clientX - startX), dy = Math.abs(ev.clientY - startY);
+        if (dx > MOVE_CANCEL_THRESHOLD || dy > MOVE_CANCEL_THRESHOLD) {
+          moved = true;
+          clearTimeout(pressTimer);
+          cleanupPreDrag();
+        }
+      }
+      function onUpCheck() {
+        clearTimeout(pressTimer);
+        cleanupPreDrag();
+      }
+      function cleanupPreDrag() {
+        document.removeEventListener('pointermove', onMoveCheck);
+        document.removeEventListener('pointerup', onUpCheck);
+      }
+
+      tile.addEventListener('pointerdown', function (e) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        moved = false;
+        startX = e.clientX; startY = e.clientY;
+        document.addEventListener('pointermove', onMoveCheck);
+        document.addEventListener('pointerup', onUpCheck);
+        pressTimer = setTimeout(function () {
+          cleanupPreDrag();
+          if (!moved) startDrag(tile, e);
+        }, LONG_PRESS_MS);
+      });
+    });
+
+    function startDrag(tile, startEvent) {
+      if (navigator.vibrate) { try { navigator.vibrate(15); } catch (err) {} }
+      var rect = tile.getBoundingClientRect();
+      var offsetX = startEvent.clientX - rect.left;
+      var offsetY = startEvent.clientY - rect.top;
+
+      var placeholder = document.createElement('div');
+      placeholder.className = 'bl-drag-placeholder';
+      placeholder.style.width = rect.width + 'px';
+      placeholder.style.minWidth = rect.width + 'px';
+      placeholder.style.height = rect.height + 'px';
+      tile.parentNode.insertBefore(placeholder, tile.nextSibling);
+
+      tile.classList.add('bl-dragging');
+      tile.style.position = 'fixed';
+      tile.style.zIndex = '999';
+      tile.style.left = rect.left + 'px';
+      tile.style.top = rect.top + 'px';
+      tile.style.width = rect.width + 'px';
+      document.body.appendChild(tile);
+
+      function onMove(ev) {
+        ev.preventDefault();
+        tile.style.left = (ev.clientX - offsetX) + 'px';
+        tile.style.top = (ev.clientY - offsetY) + 'px';
+        var siblings = Array.from(container.querySelectorAll('.bl-piling[' + itemAttr + ']')).filter(function (s) { return s !== tile; });
+        for (var i = 0; i < siblings.length; i++) {
+          var r = siblings[i].getBoundingClientRect();
+          if (ev.clientX > r.left && ev.clientX < r.right && ev.clientY > r.top && ev.clientY < r.bottom) {
+            var before = ev.clientX < r.left + r.width / 2;
+            if (before) siblings[i].parentNode.insertBefore(placeholder, siblings[i]);
+            else siblings[i].parentNode.insertBefore(placeholder, siblings[i].nextSibling);
+            break;
+          }
+        }
+      }
+      function onUp() {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        tile.classList.remove('bl-dragging');
+        tile.style.position = '';
+        tile.style.zIndex = '';
+        tile.style.left = '';
+        tile.style.top = '';
+        tile.style.width = '';
+        placeholder.parentNode.insertBefore(tile, placeholder);
+        placeholder.remove();
+
+        var newOrderIds = Array.from(container.querySelectorAll('.bl-piling[' + itemAttr + ']')).map(function (el) { return el.getAttribute(itemAttr); });
+        var arr = getArray();
+        var reordered = newOrderIds.map(function (id) { return arr.find(function (x) { return x.id === id; }); }).filter(Boolean);
+        if (reordered.length === arr.length) {
+          arr.length = 0;
+          reordered.forEach(function (x) { arr.push(x); });
+          storageSet(storageKey, arr);
+        }
+        render();
+      }
+      document.addEventListener('pointermove', onMove, { passive: false });
+      document.addEventListener('pointerup', onUp);
+    }
+  }
+
+  function bindEvents() {
+    var retryBtn = document.querySelector('[data-action="retry-save"]');
+    if (retryBtn) retryBtn.addEventListener('click', retryLastSave);
+    document.querySelectorAll('[data-tab]').forEach(function (btn) {
+      btn.addEventListener('click', function () { state.tab = btn.getAttribute('data-tab'); render(); });
+    });
+    document.querySelectorAll('[data-action="advance"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-id'), step = btn.getAttribute('data-step');
+        var r = state.rentals.find(function (x) { return x.id === id; });
+        if (r) {
+          r[step] = true;
+          if (step === 'itemReturned') r.depositRefunded = true;
+          storageSet('rentals', state.rentals);
+          render();
+        }
+      });
+    });
+    document.querySelectorAll('[data-action="cancel-rental"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-id');
+        var r = state.rentals.find(function (x) { return x.id === id; });
+        if (!r) return;
+        var keepsDeposit = r.depositPaid && !r.yoodlize;
+        var msg = 'Mark this rental as cancelled?' + (keepsDeposit ? ' You will keep the ' + fmtMoney(r.depositAmount) + ' non-refundable reservation deposit.' : '');
+        customConfirm(msg, function () {
+          r.cancelled = true;
+          storageSet('rentals', state.rentals);
+          render();
+        });
+      });
+    });
+    document.querySelectorAll('[data-action="undo-step"]').forEach(function (dot) {
+      dot.addEventListener('click', function () {
+        var id = dot.getAttribute('data-id'), step = dot.getAttribute('data-step');
+        var r = state.rentals.find(function (x) { return x.id === id; });
+        if (!r) return;
+        var idx = STEPS.findIndex(function (s) { return s.key === step; });
+        var laterDone = STEPS.slice(idx + 1).some(function (s) { return r[s.key]; });
+        var msg = 'Undo "' + STEPS[idx].label + '"?' + (laterDone ? ' This will also undo the later steps after it.' : '');
+        customConfirm(msg, function () {
+          for (var j = idx; j < STEPS.length; j++) { r[STEPS[j].key] = false; }
+          if (step === 'itemReturned') r.depositRefunded = false;
+          storageSet('rentals', state.rentals);
+          render();
+        });
+      });
+    });
+    document.querySelectorAll('[data-action="edit-rental"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-id');
+        openRentalModal(state.rentals.find(function (x) { return x.id === id; }));
+      });
+    });
+    document.querySelectorAll('[data-action="view-rental"]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var id = el.getAttribute('data-id');
+        var r = state.rentals.find(function (x) { return x.id === id; });
+        if (r) openRentalDetailModal(r);
+      });
+    });
+    document.querySelectorAll('[data-action="edit-item"]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var id = el.getAttribute('data-item-id');
+        openItemModal(state.inventory.find(function (i) { return i.id === id; }));
+      });
+    });
+    document.querySelectorAll('[data-action="edit-addon"]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var id = el.getAttribute('data-addon-id');
+        openAddonModal(state.addons.find(function (a) { return a.id === id; }));
+      });
+    });
+    var addItemBtn = document.querySelector('[data-action="add-item"]');
+    if (addItemBtn) addItemBtn.addEventListener('click', function () { openItemModal(null); });
+    var addAddonBtn = document.querySelector('[data-action="add-addon"]');
+    if (addAddonBtn) addAddonBtn.addEventListener('click', function () { openAddonModal(null); });
+
+    document.querySelectorAll('[data-view]').forEach(function (btn) {
+      btn.addEventListener('click', function () { state.view = btn.getAttribute('data-view'); render(); });
+    });
+    document.querySelectorAll('[data-cal-mode]').forEach(function (btn) {
+      btn.addEventListener('click', function () { state.calendarMode = btn.getAttribute('data-cal-mode'); render(); });
+    });
+    var prevBtn = document.querySelector('[data-action="week-prev"]');
+    if (prevBtn) prevBtn.addEventListener('click', function () { state.weekStart = addDays(state.weekStart, -7); render(); });
+    var nextBtn = document.querySelector('[data-action="week-next"]');
+    if (nextBtn) nextBtn.addEventListener('click', function () { state.weekStart = addDays(state.weekStart, 7); render(); });
+    var todayBtn = document.querySelector('[data-action="week-today"]');
+    if (todayBtn) todayBtn.addEventListener('click', function () {
+      var t = toISODate(new Date());
+      state.weekStart = startOfWeek(t);
+      state.selectedDay = t;
+      render();
+    });
+    var monthPrevBtn = document.querySelector('[data-action="month-prev"]');
+    if (monthPrevBtn) monthPrevBtn.addEventListener('click', function () { state.monthCursor = addMonths(state.monthCursor, -1); render(); });
+    var monthNextBtn = document.querySelector('[data-action="month-next"]');
+    if (monthNextBtn) monthNextBtn.addEventListener('click', function () { state.monthCursor = addMonths(state.monthCursor, 1); render(); });
+    var monthTodayBtn = document.querySelector('[data-action="month-today"]');
+    if (monthTodayBtn) monthTodayBtn.addEventListener('click', function () {
+      var t = toISODate(new Date());
+      state.monthCursor = startOfMonth(t);
+      state.selectedDay = t;
+      render();
+    });
+    var openMonthPickerBtn = document.querySelector('[data-action="open-month-picker"]');
+    if (openMonthPickerBtn) openMonthPickerBtn.addEventListener('click', openMonthPickerModal);
+    var openFinanceYearPickerBtn = document.querySelector('[data-action="open-finance-year-picker"]');
+    if (openFinanceYearPickerBtn) openFinanceYearPickerBtn.addEventListener('click', openFinanceYearPickerModal);
+    var chartItemFilterEl = document.getElementById('bl-chart-item-filter');
+    if (chartItemFilterEl) chartItemFilterEl.addEventListener('change', function () {
+      state.chartItemFilter = chartItemFilterEl.value;
+      render();
+    });
+    document.querySelectorAll('.bl-chart-legend-item').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var metric = btn.getAttribute('data-metric');
+        var idx = state.chartMetrics.indexOf(metric);
+        if (idx !== -1) state.chartMetrics.splice(idx, 1);
+        else state.chartMetrics.push(metric);
+        render();
+      });
+    });
+    document.querySelectorAll('.bl-chart-type-tab').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.chartType = btn.getAttribute('data-chart-type');
+        render();
+      });
+    });
+    var financeYearPrev = document.querySelector('[data-action="finance-year-prev"]');
+    if (financeYearPrev) financeYearPrev.addEventListener('click', function () {
+      var years = financeYearsAvailable();
+      var current = state.financeYear || new Date().getFullYear();
+      state.financeYear = current - 1;
+      if (years.indexOf(state.financeYear) === -1) years.push(state.financeYear);
+      render();
+    });
+    var financeYearNext = document.querySelector('[data-action="finance-year-next"]');
+    if (financeYearNext) financeYearNext.addEventListener('click', function () {
+      var current = state.financeYear || new Date().getFullYear();
+      state.financeYear = current + 1;
+      render();
+    });
+    var financeYearAll = document.querySelector('[data-action="finance-year-all"]');
+    if (financeYearAll) financeYearAll.addEventListener('click', function () {
+      state.financeYear = state.financeYear ? null : new Date().getFullYear();
+      render();
+    });
+    var toggleChartBtn = document.querySelector('[data-action="toggle-chart"]');
+    if (toggleChartBtn) toggleChartBtn.addEventListener('click', function () {
+      state.showChart = !state.showChart;
+      render();
+    });
+    document.querySelectorAll('[data-day]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        if (el.getAttribute('data-action') === 'show-day-overflow') return;
+        state.selectedDay = el.getAttribute('data-day'); render();
+      });
+      el.addEventListener('dblclick', function (e) {
+        if (el.getAttribute('data-action') === 'show-day-overflow') return;
+        e.preventDefault();
+        var dateStr = el.getAttribute('data-day');
+        openRentalModal(null, { startDate: dateStr, endDate: dateStr });
+      });
+    });
+    document.querySelectorAll('[data-action="show-day-overflow"]').forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openDayOverflowPopup(el.getAttribute('data-day'));
+      });
+    });
+    document.querySelectorAll('.bl-week-booking, .bl-day-booked-clickable, .bl-cal-bar').forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id = el.getAttribute('data-rental-id');
+        var rental = state.rentals.find(function (r) { return r.id === id; });
+        if (rental) openRentalDetailModal(rental);
+      });
+    });
+    document.querySelectorAll('[data-action="edit-expense"]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var id = el.getAttribute('data-id');
+        openExpenseModal(state.expenses.find(function (x) { return x.id === id; }));
+      });
+    });
+    document.querySelectorAll('[data-action="edit-historical"]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var id = el.getAttribute('data-id');
+        openHistoricalModal(state.historicalAdjustments.find(function (x) { return x.id === id; }));
+      });
+    });
+    var addExpenseBtn = document.querySelector('[data-action="add-expense"]');
+    if (addExpenseBtn) addExpenseBtn.addEventListener('click', function () { openExpenseModal(null); });
+    document.querySelectorAll('[data-action="add-expense-for"]').forEach(function (btn) {
+      btn.addEventListener('click', function () { openExpenseModal(null, btn.getAttribute('data-item-id') || ''); });
+    });
+    document.querySelectorAll('[data-action="add-historical-for"]').forEach(function (btn) {
+      btn.addEventListener('click', function () { openHistoricalModal(null, btn.getAttribute('data-item-id') || ''); });
+    });
+    setupDragReorder('.bl-dock', 'data-item-id', function () { return state.inventory; }, 'inventory');
+    setupDragReorder('.bl-addon-row', 'data-addon-id', function () { return state.addons; }, 'addons');
+  }
+
+  function closeModal() {
+    var ov = document.getElementById('bl-overlay');
+    if (ov) ov.remove();
+  }
+
+  function customAlert(message) {
+    var existing = document.getElementById('bl-alert-overlay');
+    if (existing) existing.remove();
+    var overlay = document.createElement('div');
+    overlay.className = 'bl-overlay';
+    overlay.id = 'bl-alert-overlay';
+    overlay.style.zIndex = '10000';
+    overlay.innerHTML =
+      '<div class="bl-modal"><p style="font-size:15px;line-height:1.5;margin:0 0 18px;">' + esc(message) + '</p>' +
+      '<div class="bl-modal-actions" style="justify-content:flex-end;">' +
+      '<button type="button" class="bl-save-btn" id="bl-alert-ok">OK</button>' +
+      '</div></div>';
+    document.body.appendChild(overlay);
+    function dismiss() { overlay.remove(); }
+    overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) dismiss(); });
+    document.getElementById('bl-alert-ok').addEventListener('click', dismiss);
+  }
+
+  function customConfirm(message, onConfirm) {
+    var existing = document.getElementById('bl-confirm-overlay');
+    if (existing) existing.remove();
+    var overlay = document.createElement('div');
+    overlay.className = 'bl-overlay';
+    overlay.id = 'bl-confirm-overlay';
+    overlay.style.zIndex = '10000';
+    overlay.innerHTML =
+      '<div class="bl-modal"><p style="font-size:15px;line-height:1.5;margin:0 0 18px;">' + esc(message) + '</p>' +
+      '<div class="bl-modal-actions">' +
+      '<button type="button" class="bl-cancel-btn" id="bl-confirm-no">Cancel</button>' +
+      '<button type="button" class="bl-save-btn" id="bl-confirm-yes">Confirm</button>' +
+      '</div></div>';
+    document.body.appendChild(overlay);
+    function dismiss() { overlay.remove(); }
+    overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) dismiss(); });
+    document.getElementById('bl-confirm-no').addEventListener('click', dismiss);
+    document.getElementById('bl-confirm-yes').addEventListener('click', function () {
+      dismiss();
+      onConfirm();
+    });
+  }
+
+  function openRentalModal(rental, presets) {
+    closeModal();
+    var isEdit = !!rental;
+    var f = rental ? Object.assign({}, rental, { addons: (rental.addons || []).slice() }) : Object.assign({
+      id: null, customerName: '', source: '',
+      itemId: state.inventory[0] ? state.inventory[0].id : '',
+      qty: 1, startDate: '', endDate: '',
+      price: '', depositPaid: true, safetyDeposit: '', notes: '', addons: [],
+    }, presets || {});
+    var selectedAddonIds = {};
+    (f.addons || []).forEach(function (a) {
+      var key = a.addonId || a.id;
+      if (!selectedAddonIds[key]) selectedAddonIds[key] = [];
+      selectedAddonIds[key].push(a);
+    });
+
+    var overlay = document.createElement('div');
+    overlay.className = 'bl-overlay';
+    overlay.id = 'bl-overlay';
+
+    function sizeLineHtml(addon, selectedSize, qty) {
+      var selectedAvail = 1;
+      var placeholder = !selectedSize ? '<option value="" selected disabled>Select size…</option>' : '';
+      var options = addon.sizes.map(function (s) {
+        var avail = Math.max(addonSizeStock(addon, s) - addonOutForDateRange(addon.id, s, f.startDate, f.endDate, f.id), 0);
+        if (s === selectedSize) selectedAvail = Math.max(avail, qty || 1);
+        return '<option value="' + esc(s) + '"' + (s === selectedSize ? ' selected' : '') + (avail <= 0 && s !== selectedSize ? ' disabled' : '') + '>' + esc(s) + ' (' + avail + ' left)</option>';
+      }).join('');
+      return '<div class="bl-size-line" data-addon-id="' + addon.id + '">' +
+        '<select class="bl-size-select">' + placeholder + options + '</select>' +
+        '<input type="number" min="1" max="' + selectedAvail + '" class="bl-size-qty" value="' + (qty || 1) + '">' +
+        '<button type="button" class="bl-size-remove" title="Remove">×</button>' +
+        '</div>';
+    }
+
+    var addonPickerHtml = '';
+    if (state.addons.length === 0) {
+      addonPickerHtml = '<div class="bl-addon-picker-empty">No add-ons yet — add some from the Add-ons row on the main screen.</div>';
+    } else {
+      addonPickerHtml = state.addons.map(function (a) {
+        var lines = selectedAddonIds[a.id] || [];
+        var hasSizes = a.sizes && a.sizes.length > 0;
+        var checked = lines.length > 0;
+        var applies = addonAppliesTo(a, f.itemId);
+        var avail = Math.max(addonStockTotal(a) - addonOutForDateRange(a.id, undefined, f.startDate, f.endDate, f.id), 0);
+        var qtyMax = Math.max(avail, checked ? (lines[0].qty || 1) : 1);
+        var block = '<div class="bl-addon-block" data-addon-id="' + a.id + '" data-item-ids="' + esc((a.itemIds || []).join(',')) + '"' + (applies ? '' : ' style="display:none;"') + '>';
+        block += '<div class="bl-addon-picker-row">' +
+          '<label><input type="checkbox" class="bl-addon-check" data-addon-id="' + a.id + '"' + (checked ? ' checked' : '') + (avail <= 0 && !checked ? ' disabled' : '') + '>' + esc(a.name) + '</label>' +
+          '<span class="bl-addon-price">' + fmtMoney(a.price) + '/day · <span class="bl-addon-avail" data-addon-id="' + a.id + '">' + avail + ' left</span></span>' +
+          (!hasSizes ? '<input type="number" min="1" max="' + qtyMax + '" class="bl-addon-qty" data-addon-id="' + a.id + '" value="' + (checked ? (lines[0].qty || 1) : 1) + '">' : '') +
+          '</div>';
+        if (hasSizes) {
+          block += '<div class="bl-addon-sizes" data-addon-id="' + a.id + '"' + (checked ? '' : ' style="display:none;"') + '>';
+          if (lines.length > 0) {
+            lines.forEach(function (l) { block += sizeLineHtml(a, l.size, l.qty); });
+          } else {
+            block += sizeLineHtml(a, null, 1);
+          }
+          block += '</div>';
+          block += '<button type="button" class="bl-addon-add-size" data-addon-id="' + a.id + '"' + (checked ? '' : ' style="display:none;"') + '>+ Add another size</button>';
+        }
+        block += '</div>';
+        return block;
+      }).join('');
+    }
+
+    overlay.innerHTML =
+      '<div class="bl-modal"><h2>' + (isEdit ? 'Edit rental' : 'New rental') + '</h2>' +
+      '<form id="bl-rental-form">' +
+      '<div class="bl-row2">' +
+      '<div class="bl-field"><label>Customer name</label><input name="customerName" value="' + esc(f.customerName) + '" required></div>' +
+      '<div class="bl-field"><label>Contacted via</label><select name="source">' +
+      ['', 'Facebook', 'KSL', 'Yoodlize'].map(function (s) { return '<option value="' + s + '"' + (s === (f.source || '') ? ' selected' : '') + '>' + (s || 'Select') + '</option>'; }).join('') +
+      '</select></div>' +
+      '</div>' +
+      '<div class="bl-field"><label>Dates</label>' + dateRangePickerHtml(f.startDate, f.endDate) + '</div>' +
+      '<div class="bl-row2">' +
+      '<div class="bl-field"><label>Pick up time</label>' + timePickerHtml('pickupTime', f.pickupTime || '') + '</div>' +
+      '<div class="bl-field"><label>Drop off time</label>' + timePickerHtml('dropoffTime', f.dropoffTime || '') + '</div>' +
+      '</div>' +
+      '<div class="bl-row2">' +
+      '<div class="bl-field"><label>Item</label><select name="itemId" id="bl-item-select">' +
+      state.inventory.map(function (i) { return '<option value="' + i.id + '"' + (i.id === f.itemId ? ' selected' : '') + '>' + esc(i.name) + ' — ' + fmtMoney(i.price) + '/day</option>'; }).join('') +
+      '</select></div>' +
+      '<div class="bl-field" id="bl-qty-field"><label>Quantity</label><input type="number" min="1" name="qty" id="bl-qty-input" value="' + esc(f.qty) + '"><div id="bl-qty-avail-note" class="bl-qty-avail-note"></div></div>' +
+      '</div>' +
+      '<div class="bl-field" id="bl-components-field" style="display:none;"><label>Pieces included</label><div class="bl-addon-picker" id="bl-components-picker"></div></div>' +
+      '<div class="bl-field"><label>Add-ons</label><div class="bl-addon-picker" id="bl-addon-picker">' + addonPickerHtml + '</div></div>' +
+      '<div class="bl-subtotal-row"><span id="bl-subtotal-text">Item + add-ons: ' + fmtMoney(0) + '</span></div>' +
+      '<div class="bl-field" style="margin-top:11px;"><label>Total price ($)</label><input type="number" step="0.01" name="price" id="bl-price-input" value="' + esc(f.price) + '"></div>' +
+      '<div class="bl-field bl-deposit-check-row"><label><input type="checkbox" id="bl-deposit-check" name="depositPaid"' + (f.depositPaid ? ' checked' : '') + '> Reservation deposit paid (' + fmtMoney(DEPOSIT_AMOUNT) + ')</label></div>' +
+      '<div class="bl-field bl-deposit-check-row"><label><input type="checkbox" id="bl-yoodlize-check" name="yoodlize"' + (f.yoodlize ? ' checked' : '') + '> Paid with Yoodlize (deposits waived)</label></div>' +
+      '<div class="bl-field bl-yoodlize-fee-field" id="bl-yoodlize-fee-field" style="' + (f.yoodlize ? '' : 'display:none;') + '"><label>Yoodlize fee ($ — 10% of total)</label><input type="number" step="0.01" min="0" name="yoodlizeFee" id="bl-yoodlize-fee-input" value="' + esc(f.yoodlizeFee || '') + '"></div>' +
+      '<div class="bl-remaining-row" id="bl-remaining-row"></div>' +
+      '<div class="bl-field"><label>Refundable safety deposit ($)</label><input type="number" step="0.01" name="safetyDeposit" id="bl-safety-input" value="' + esc(f.safetyDeposit) + '"></div>' +
+      '<div class="bl-field"><label>Notes</label><input name="notes" value="' + esc(f.notes) + '" placeholder="Optional"></div>' +
+      '<div class="bl-modal-actions">' +
+      '<div><button type="button" class="bl-cancel-btn" id="bl-cancel">Cancel</button>' +
+      (isEdit ? '<button type="button" class="bl-delete-btn" id="bl-delete" style="margin-left:12px;">Delete</button>' : '') +
+      '</div>' +
+      '<button type="submit" class="bl-save-btn">Save rental</button>' +
+      '</div>' +
+      '</form></div>';
+    document.body.appendChild(overlay);
+    overlay.querySelectorAll('.bl-wheel-time-wrapper').forEach(function (w) { initWheelTimePicker(w); });
+    overlay.querySelectorAll('.bl-daterange-wrapper').forEach(function (w) { initDateRangePicker(w); });
+
+    function addOneHour(timeStr) {
+      var parts = timeStr.split(':');
+      var h = Number(parts[0]) + 1;
+      if (h > 23) h = 23;
+      return (h < 10 ? '0' + h : '' + h) + ':' + parts[1];
+    }
+    function isSameDayRental() {
+      var s = overlay.querySelector('input[name="startDate"]').value;
+      var e = overlay.querySelector('input[name="endDate"]').value;
+      return s && e && s === e;
+    }
+    var pickupHiddenInput = overlay.querySelector('input[name="pickupTime"]');
+    var dropoffHiddenInput = overlay.querySelector('input[name="dropoffTime"]');
+    var pickupWrapperEl = pickupHiddenInput ? pickupHiddenInput.closest('.bl-wheel-time-wrapper') : null;
+    var dropoffWrapper = dropoffHiddenInput ? dropoffHiddenInput.closest('.bl-wheel-time-wrapper') : null;
+    if (pickupHiddenInput && dropoffHiddenInput && pickupWrapperEl && dropoffWrapper) {
+      pickupWrapperEl._onClose = function () {
+        if (!isSameDayRental() || !pickupHiddenInput.value) return;
+        if (!dropoffHiddenInput.value || dropoffHiddenInput.value <= pickupHiddenInput.value) {
+          dropoffWrapper._setTimeValue(addOneHour(pickupHiddenInput.value));
+        }
+      };
+      dropoffWrapper._onClose = function () {
+        if (!isSameDayRental() || !pickupHiddenInput.value) return;
+        if (dropoffHiddenInput.value && dropoffHiddenInput.value <= pickupHiddenInput.value) {
+          dropoffWrapper._setTimeValue(addOneHour(pickupHiddenInput.value), { silent: true });
+        }
+      };
+    }
+
+    var autoPrice = !isEdit;
+    var autoSafety = !isEdit;
+    var autoYoodlizeFee = !isEdit;
+
+    function computeSubtotal() {
+      var itemId = document.getElementById('bl-item-select').value;
+      var qty = Number(document.getElementById('bl-qty-input').value) || 0;
+      var originalRequestedQty = qty;
+      var startDate = overlay.querySelector('input[name="startDate"]').value;
+      var endDate = overlay.querySelector('input[name="endDate"]').value;
+      var pickupTimeVal = overlay.querySelector('input[name="pickupTime"]').value;
+      var dropoffTimeVal = overlay.querySelector('input[name="dropoffTime"]').value;
+      var days = rentalDays(startDate, endDate, pickupTimeVal, dropoffTimeVal);
+      var item = state.inventory.find(function (i) { return i.id === itemId; });
+      var hasComponents = item && item.components && item.components.length > 0;
+      if (item && !hasComponents && startDate && endDate) {
+        var qtyInputEarly = document.getElementById('bl-qty-input');
+        var earlyAvail = Math.max(item.total - itemOutForRental(item.id, { startDate: startDate, endDate: endDate, pickupTime: pickupTimeVal, dropoffTime: dropoffTimeVal }, f.id), 0);
+        if (qty > earlyAvail && document.activeElement !== qtyInputEarly) {
+          qty = earlyAvail;
+          qtyInputEarly.value = earlyAvail;
+        }
+      }
+      var itemTotal, itemLabel;
+      if (hasComponents) {
+        var compSum = 0, selectedNames = [], selectedCount = 0;
+        item.components.forEach(function (c) {
+          var chk = overlay.querySelector('.bl-component-check[data-component-id="' + c.id + '"]');
+          if (chk && chk.checked) { compSum += Number(c.price) || 0; selectedNames.push(c.name); selectedCount++; }
+        });
+        var isFullSetup = selectedCount === item.components.length;
+        itemTotal = (isFullSetup ? Number(item.price) || 0 : compSum) * days;
+        itemLabel = isFullSetup ? item.name : (selectedNames.length ? selectedNames.join(' + ') : item.name);
+      } else {
+        itemTotal = (item ? Number(item.price) || 0 : 0) * qty * days;
+        itemLabel = item ? qty + 'x ' + item.name : 'Item';
+      }
+      var addonsTotal = 0;
+      state.addons.forEach(function (a) {
+        var checkbox = overlay.querySelector('.bl-addon-check[data-addon-id="' + a.id + '"]');
+        if (!checkbox || !checkbox.checked) return;
+        if (a.sizes && a.sizes.length > 0) {
+          overlay.querySelectorAll('.bl-size-line[data-addon-id="' + a.id + '"]').forEach(function (line) {
+            var q = Number(line.querySelector('.bl-size-qty').value) || 1;
+            addonsTotal += (Number(a.price) || 0) * q * days;
+          });
+        } else {
+          var qtyInput = overlay.querySelector('.bl-addon-qty[data-addon-id="' + a.id + '"]');
+          var q = Number(qtyInput ? qtyInput.value : 1) || 1;
+          addonsTotal += (Number(a.price) || 0) * q * days;
+        }
+      });
+      var total = itemTotal + addonsTotal;
+      var dayLabel = days === 1 ? '1 day' : days + ' days';
+      document.getElementById('bl-subtotal-text').textContent =
+        itemLabel + ' × ' + dayLabel + (addonsTotal > 0 ? ' + add-ons' : '') + ': ' + fmtMoney(total);
+      if (autoPrice) document.getElementById('bl-price-input').value = total.toFixed(2);
+      if (autoSafety) {
+        var yoodlizeOn = document.getElementById('bl-yoodlize-check').checked;
+        var safetyCalc = yoodlizeOn ? 0 : Math.min((item ? Number(item.safetyDepositRate) || 0 : 0) * qty, SAFETY_DEPOSIT_CAP);
+        overlay.querySelector('input[name="safetyDeposit"]').value = safetyCalc.toFixed(2);
+      }
+      recalcYoodlizeFee();
+      updateRemainingDisplay();
+      refreshAddonAvailabilityDisplay(startDate, endDate);
+      if (item) refreshComponentsAvailabilityDisplay(item, startDate, endDate);
+      if (item && !hasComponents) {
+        var qtyInput2 = document.getElementById('bl-qty-input');
+        var alreadyOut = itemOutForRental(item.id, { startDate: startDate, endDate: endDate, pickupTime: pickupTimeVal, dropoffTime: dropoffTimeVal }, f.id);
+        var itemAvail = Math.max(item.total - alreadyOut, 0);
+        qtyInput2.max = itemAvail;
+        if (qty > itemAvail && document.activeElement !== qtyInput2) {
+          qtyInput2.value = itemAvail;
+          qty = itemAvail;
+        }
+        var qtyNote = document.getElementById('bl-qty-avail-note');
+        if (qtyNote) {
+          if (!startDate || !endDate) {
+            qtyNote.textContent = '';
+          } else {
+            var isSingleDay = startDate === endDate;
+            var checkDateForUntil = isSingleDay ? startDate : endDate;
+            var untilInfo = itemAvailableUntilTime(item.id, checkDateForUntil, originalRequestedQty, f.id);
+            if (untilInfo && !isSingleDay) {
+              var restOfRangeShortfalls = itemShortfallDays(item.id, startDate, addDays(endDate, -1), originalRequestedQty, f.id);
+              if (restOfRangeShortfalls.length > 0) untilInfo = null;
+            }
+            var relevantOwnTime = isSingleDay ? pickupTimeVal : dropoffTimeVal;
+            var pickupBeforeThreshold = untilInfo && (!relevantOwnTime || relevantOwnTime < untilInfo.time);
+            if (pickupBeforeThreshold) {
+              qtyNote.textContent = untilInfo.avail + '/' + item.total + ' free until ' + fmtTime(untilInfo.time) + ' on ' + fmtDate(checkDateForUntil) + ' — must be returned before then';
+              qtyNote.className = 'bl-qty-avail-note bl-qty-avail-ok';
+            } else if (originalRequestedQty <= itemAvail) {
+              qtyNote.textContent = itemAvail + ' of ' + item.total + ' available for these dates';
+              qtyNote.className = 'bl-qty-avail-note bl-qty-avail-ok';
+            } else {
+              var shortfalls = itemShortfallDays(item.id, startDate, endDate, originalRequestedQty, f.id);
+              var dayList = shortfalls.length > 0 ? shortfalls.map(function (s) { return fmtDate(s.date); }).join(', ') : (fmtDate(startDate) + ' – ' + fmtDate(endDate));
+              var worstAvail = shortfalls.length > 0 ? Math.min.apply(null, shortfalls.map(function (s) { return s.avail; })) : itemAvail;
+              var baseMsg = worstAvail <= 0
+                ? 'No ' + item.name.toLowerCase() + 's left on ' + dayList
+                : 'Only ' + worstAvail + ' available on ' + dayList;
+              var freeUp = shortfalls.length === 1 ? itemFreeUpTime(item.id, shortfalls[0].date, originalRequestedQty, f.id) : null;
+              qtyNote.textContent = baseMsg + (freeUp ? ' — ' + originalRequestedQty + ' available after ' + fmtTime(freeUp.time) : '');
+              qtyNote.className = 'bl-qty-avail-note bl-qty-avail-none';
+            }
+          }
+        }
+      }
+      return total;
+    }
+
+    function refreshComponentsAvailabilityDisplay(item, startDate, endDate) {
+      if (!item.components || item.components.length === 0) return;
+      item.components.forEach(function (c) {
+        var chk = overlay.querySelector('.bl-component-check[data-component-id="' + c.id + '"]');
+        if (!chk) return;
+        var out = componentOutForDateRange(item.id, c.id, startDate, endDate, f.id);
+        var avail = Math.max(1 - out, 0);
+        if (avail <= 0 && chk.checked) chk.checked = false;
+        chk.disabled = avail <= 0;
+        var row = chk.closest('.bl-addon-picker-row');
+        if (row) row.style.opacity = avail <= 0 ? '0.5' : '';
+        var priceSpan = overlay.querySelector('.bl-component-status[data-component-id="' + c.id + '"]');
+        if (priceSpan) priceSpan.textContent = fmtMoney(c.price) + '/day' + (avail <= 0 ? ' · booked' : '');
+      });
+    }
+
+    function renderComponentsPickerHtml(item, selectedIds, startDate, endDate) {
+      return item.components.map(function (c) {
+        var out = componentOutForDateRange(item.id, c.id, startDate, endDate, f.id);
+        var avail = Math.max(1 - out, 0);
+        var checked = selectedIds.indexOf(c.id) !== -1;
+        var disabled = avail <= 0 && !checked;
+        return '<div class="bl-addon-picker-row"><label' + (disabled ? ' style="opacity:0.5;"' : '') + '>' +
+          '<input type="checkbox" class="bl-component-check" data-component-id="' + c.id + '"' + (checked ? ' checked' : '') + (disabled ? ' disabled' : '') + '>' + esc(c.name) + '</label>' +
+          '<span class="bl-addon-price bl-component-status" data-component-id="' + c.id + '">' + fmtMoney(c.price) + '/day' + (avail <= 0 ? ' · booked' : '') + '</span></div>';
+      }).join('');
+    }
+
+    function applyComponentsVisibility(item, selectedIds) {
+      var field = document.getElementById('bl-components-field');
+      var picker = document.getElementById('bl-components-picker');
+      var qtyField = document.getElementById('bl-qty-field');
+      var startDate = overlay.querySelector('input[name="startDate"]').value;
+      var endDate = overlay.querySelector('input[name="endDate"]').value;
+      if (item && item.components && item.components.length > 0) {
+        field.style.display = '';
+        qtyField.style.display = 'none';
+        document.getElementById('bl-qty-input').value = 1;
+        picker.innerHTML = renderComponentsPickerHtml(item, selectedIds, startDate, endDate);
+      } else {
+        field.style.display = 'none';
+        qtyField.style.display = '';
+        picker.innerHTML = '';
+      }
+    }
+
+    function refreshAddonAvailabilityDisplay(startDate, endDate) {
+      state.addons.forEach(function (a) {
+        if (a.sizes && a.sizes.length > 0) {
+          var lines = Array.from(overlay.querySelectorAll('.bl-size-line[data-addon-id="' + a.id + '"]'));
+          function claimedBySiblings(sizeValue, excludeIdx) {
+            var claimed = 0;
+            lines.forEach(function (otherLine, otherIdx) {
+              if (otherIdx === excludeIdx) return;
+              var otherSel = otherLine.querySelector('.bl-size-select');
+              var otherQty = Number(otherLine.querySelector('.bl-size-qty').value) || 0;
+              if (otherSel.value === sizeValue) claimed += otherQty;
+            });
+            return claimed;
+          }
+          lines.forEach(function (line, idx) {
+            var sel = line.querySelector('.bl-size-select');
+            var qtyInput = line.querySelector('.bl-size-qty');
+            Array.from(sel.options).forEach(function (opt) {
+              if (!opt.value) return;
+              var savedAvail = Math.max(addonSizeStock(a, opt.value) - addonOutForDateRange(a.id, opt.value, startDate, endDate, f.id), 0);
+              var avail = Math.max(savedAvail - claimedBySiblings(opt.value, idx), 0);
+              opt.textContent = opt.value + ' (' + avail + ' left)';
+              opt.disabled = avail <= 0 && !opt.selected;
+            });
+            var selectedOpt = sel.options[sel.selectedIndex];
+            var selectedAvail = 0;
+            if (selectedOpt && selectedOpt.value) {
+              var savedAvailSel = Math.max(addonSizeStock(a, selectedOpt.value) - addonOutForDateRange(a.id, selectedOpt.value, startDate, endDate, f.id), 0);
+              selectedAvail = Math.max(savedAvailSel - claimedBySiblings(selectedOpt.value, idx), 0);
+            }
+            qtyInput.max = Math.max(selectedAvail, Number(qtyInput.value) || 1);
+          });
+        } else {
+          var availSpan = overlay.querySelector('.bl-addon-avail[data-addon-id="' + a.id + '"]');
+          var checkbox = overlay.querySelector('.bl-addon-check[data-addon-id="' + a.id + '"]');
+          var qtyInput2 = overlay.querySelector('.bl-addon-qty[data-addon-id="' + a.id + '"]');
+          var avail = Math.max(addonStockTotal(a) - addonOutForDateRange(a.id, undefined, startDate, endDate, f.id), 0);
+          if (availSpan) availSpan.textContent = avail + ' left';
+          if (checkbox) checkbox.disabled = avail <= 0 && !checkbox.checked;
+          if (qtyInput2) qtyInput2.max = Math.max(avail, Number(qtyInput2.value) || 1);
+        }
+      });
+    }
+
+    function recalcYoodlizeFee() {
+      if (!autoYoodlizeFee) return;
+      var yoodlizeOn = document.getElementById('bl-yoodlize-check').checked;
+      if (!yoodlizeOn) return;
+      var priceVal = Number(document.getElementById('bl-price-input').value) || 0;
+      document.getElementById('bl-yoodlize-fee-input').value = (priceVal * YOODLIZE_FEE_RATE).toFixed(2);
+    }
+
+    function applyYoodlizeState(isUserToggle) {
+      var on = document.getElementById('bl-yoodlize-check').checked;
+      var depositCheck = document.getElementById('bl-deposit-check');
+      var safetyInput = overlay.querySelector('input[name="safetyDeposit"]');
+      var feeField = document.getElementById('bl-yoodlize-fee-field');
+      if (on) {
+        depositCheck.checked = false;
+        safetyInput.value = '0.00';
+        safetyInput.readOnly = true;
+        if (feeField) feeField.style.display = '';
+        if (isUserToggle) { autoYoodlizeFee = true; }
+        recalcYoodlizeFee();
+      } else {
+        safetyInput.readOnly = false;
+        if (feeField) feeField.style.display = 'none';
+        if (isUserToggle) { autoSafety = true; computeSubtotal(); }
+      }
+      updateRemainingDisplay();
+    }
+
+    function updateRemainingDisplay() {
+      var price = Number(document.getElementById('bl-price-input').value) || 0;
+      var yoodlizeOn = document.getElementById('bl-yoodlize-check').checked;
+      if (yoodlizeOn) {
+        document.getElementById('bl-remaining-row').textContent = 'Due at pickup: ' + fmtMoney(price) + ' (deposits waived — paid via Yoodlize)';
+        return;
+      }
+      var depositChecked = document.getElementById('bl-deposit-check').checked;
+      var safety = Number(overlay.querySelector('input[name="safetyDeposit"]').value) || 0;
+      var remaining = Math.max(price - (depositChecked ? DEPOSIT_AMOUNT : 0), 0) + safety;
+      var text = depositChecked
+        ? 'Remaining due at pickup: ' + fmtMoney(remaining)
+        : 'Due at pickup: ' + fmtMoney(price + safety) + ' + ' + fmtMoney(DEPOSIT_AMOUNT) + ' reservation deposit';
+      if (safety > 0) text += ' (includes ' + fmtMoney(safety) + ' refundable safety deposit)';
+      document.getElementById('bl-remaining-row').textContent = text;
+    }
+    var initialItemForComponents = state.inventory.find(function (i) { return i.id === f.itemId; });
+    var initialComponentIds = f.components || availableComponentIds(initialItemForComponents, f.startDate, f.endDate, f.id);
+    if (initialItemForComponents) applyComponentsVisibility(initialItemForComponents, initialComponentIds);
+    computeSubtotal();
+    applyYoodlizeState(false);
+    document.getElementById('bl-yoodlize-check').addEventListener('change', function () { applyYoodlizeState(true); });
+    document.getElementById('bl-deposit-check').addEventListener('change', function (e) {
+      if (e.target.checked) {
+        var yoodlizeCheck = document.getElementById('bl-yoodlize-check');
+        if (yoodlizeCheck.checked) {
+          yoodlizeCheck.checked = false;
+          applyYoodlizeState(true);
+        }
+      }
+    });
+
+    overlay.addEventListener('input', function (e) {
+      if (e.target.id === 'bl-price-input') {
+        autoPrice = (e.target.value === '');
+        recalcYoodlizeFee();
+        updateRemainingDisplay();
+        return;
+      }
+      if (e.target.id === 'bl-safety-input') {
+        autoSafety = (e.target.value === '');
+        updateRemainingDisplay();
+        return;
+      }
+      if (e.target.id === 'bl-yoodlize-fee-input') {
+        autoYoodlizeFee = (e.target.value === '');
+        if (autoYoodlizeFee) recalcYoodlizeFee();
+        return;
+      }
+      if (e.target.classList.contains('bl-size-qty') || e.target.classList.contains('bl-addon-qty') || e.target.id === 'bl-qty-input') {
+        var maxVal = Number(e.target.max);
+        if (maxVal > 0 && Number(e.target.value) > maxVal) e.target.value = maxVal;
+      }
+      computeSubtotal();
+    });
+    overlay.addEventListener('change', function (e) {
+      if (e.target.id === 'bl-item-select') {
+        var selItemId = e.target.value;
+        overlay.querySelectorAll('.bl-addon-block').forEach(function (block) {
+          var ids = block.getAttribute('data-item-ids');
+          var idList = ids ? ids.split(',').filter(Boolean) : [];
+          var applies = idList.length === 0 || idList.indexOf(selItemId) !== -1;
+          block.style.display = applies ? '' : 'none';
+        });
+        var newItem = state.inventory.find(function (i) { return i.id === selItemId; });
+        var curStartDate = overlay.querySelector('input[name="startDate"]').value;
+        var curEndDate = overlay.querySelector('input[name="endDate"]').value;
+        var defaultComponentIds = availableComponentIds(newItem, curStartDate, curEndDate, f.id);
+        applyComponentsVisibility(newItem, defaultComponentIds);
+      }
+      if (e.target.classList.contains('bl-addon-check')) {
+        var aId = e.target.getAttribute('data-addon-id');
+        var addon = state.addons.find(function (a) { return a.id === aId; });
+        var sizesContainer = overlay.querySelector('.bl-addon-sizes[data-addon-id="' + aId + '"]');
+        var addBtn = overlay.querySelector('.bl-addon-add-size[data-addon-id="' + aId + '"]');
+        if (sizesContainer) {
+          if (e.target.checked) {
+            sizesContainer.style.display = '';
+            if (addBtn) addBtn.style.display = '';
+            if (sizesContainer.children.length === 0 && addon) {
+              sizesContainer.insertAdjacentHTML('beforeend', sizeLineHtml(addon, null, 1));
+            }
+          } else {
+            sizesContainer.style.display = 'none';
+            if (addBtn) addBtn.style.display = 'none';
+          }
+        }
+      }
+      computeSubtotal();
+    });
+    overlay.addEventListener('click', function (e) {
+      if (e.target.classList.contains('bl-addon-add-size')) {
+        var aId = e.target.getAttribute('data-addon-id');
+        var addon = state.addons.find(function (a) { return a.id === aId; });
+        var sizesContainer = overlay.querySelector('.bl-addon-sizes[data-addon-id="' + aId + '"]');
+        if (addon && sizesContainer) sizesContainer.insertAdjacentHTML('beforeend', sizeLineHtml(addon, null, 1));
+        computeSubtotal();
+      }
+      if (e.target.classList.contains('bl-size-remove')) {
+        var line = e.target.closest('.bl-size-line');
+        var lAid = line.getAttribute('data-addon-id');
+        line.remove();
+        var remaining = overlay.querySelectorAll('.bl-size-line[data-addon-id="' + lAid + '"]');
+        if (remaining.length === 0) {
+          var checkbox2 = overlay.querySelector('.bl-addon-check[data-addon-id="' + lAid + '"]');
+          if (checkbox2) checkbox2.checked = false;
+          var sc = overlay.querySelector('.bl-addon-sizes[data-addon-id="' + lAid + '"]');
+          if (sc) sc.style.display = 'none';
+          var ab = overlay.querySelector('.bl-addon-add-size[data-addon-id="' + lAid + '"]');
+          if (ab) ab.style.display = 'none';
+        }
+        computeSubtotal();
+      }
+    });
+
+    overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) closeModal(); });
+    document.getElementById('bl-cancel').addEventListener('click', closeModal);
+    if (isEdit) document.getElementById('bl-delete').addEventListener('click', function () {
+      customConfirm('Delete this rental?', function () {
+        state.rentals = state.rentals.filter(function (r) { return r.id !== rental.id; });
+        storageSet('rentals', state.rentals);
+        closeModal();
+        render();
+      });
+    });
+
+    document.getElementById('bl-rental-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(e.target);
+      var startDateCheck = fd.get('startDate');
+      var endDateCheck = fd.get('endDate');
+      if (startDateCheck && endDateCheck && endDateCheck < startDateCheck) {
+        customAlert('The end date (' + fmtDate(endDateCheck) + ') is before the start date (' + fmtDate(startDateCheck) + '). Please fix the dates before saving.');
+        return;
+      }
+      var chosenItemId = fd.get('itemId');
+      var selectedAddons = [];
+      var missingSize = [];
+      state.addons.forEach(function (a) {
+        if (!addonAppliesTo(a, chosenItemId)) return;
+        var checkbox = overlay.querySelector('.bl-addon-check[data-addon-id="' + a.id + '"]');
+        if (!checkbox || !checkbox.checked) return;
+        if (a.sizes && a.sizes.length > 0) {
+          overlay.querySelectorAll('.bl-size-line[data-addon-id="' + a.id + '"]').forEach(function (line) {
+            var size = line.querySelector('.bl-size-select').value;
+            var q = Number(line.querySelector('.bl-size-qty').value) || 1;
+            if (!size) { missingSize.push(a.name); return; }
+            selectedAddons.push({ addonId: a.id, name: a.name, price: a.price, size: size, qty: q });
+          });
+        } else {
+          var qtyInput = overlay.querySelector('.bl-addon-qty[data-addon-id="' + a.id + '"]');
+          var q = Number(qtyInput ? qtyInput.value : 1) || 1;
+          selectedAddons.push({ addonId: a.id, name: a.name, price: a.price, size: null, qty: q });
+        }
+      });
+      if (missingSize.length > 0) {
+        customAlert('Please pick a size for: ' + missingSize.join(', ') + '.');
+        return;
+      }
+
+      var submittedStartDate = fd.get('startDate');
+      var submittedEndDate = fd.get('endDate');
+      var overages = [];
+      var totalsByKey = {};
+      selectedAddons.forEach(function (line) {
+        var key = line.addonId + (line.size ? '::' + line.size : '');
+        totalsByKey[key] = (totalsByKey[key] || 0) + line.qty;
+      });
+      Object.keys(totalsByKey).forEach(function (key) {
+        var parts = key.split('::');
+        var addonId = parts[0], size = parts[1];
+        var addon = state.addons.find(function (a) { return a.id === addonId; });
+        if (!addon) return;
+        var avail = size
+          ? Math.max(addonSizeStock(addon, size) - addonOutForDateRange(addonId, size, submittedStartDate, submittedEndDate, f.id), 0)
+          : Math.max(addonStockTotal(addon) - addonOutForDateRange(addonId, undefined, submittedStartDate, submittedEndDate, f.id), 0);
+        if (totalsByKey[key] > avail) overages.push(addon.name + (size ? ' (' + size + ')' : '') + ' (' + totalsByKey[key] + ' requested, ' + avail + ' available for those dates)');
+      });
+      if (overages.length > 0) {
+        customAlert('Not enough on hand for these dates: ' + overages.join(', ') + '. Adjust the quantity, size, or dates before saving.');
+        return;
+      }
+
+      var chosenItem = state.inventory.find(function (i) { return i.id === chosenItemId; });
+      var hasItemComponents = chosenItem && chosenItem.components && chosenItem.components.length > 0;
+      if (chosenItem && !hasItemComponents) {
+        var requestedQty = Number(fd.get('qty')) || 1;
+        var candidateForSubmit = { startDate: submittedStartDate, endDate: submittedEndDate, pickupTime: fd.get('pickupTime'), dropoffTime: fd.get('dropoffTime') };
+        var preciseOut = itemOutForRental(chosenItem.id, candidateForSubmit, f.id);
+        var preciseAvail = Math.max(chosenItem.total - preciseOut, 0);
+        if (requestedQty > preciseAvail) {
+          var shortfallDays = itemShortfallDays(chosenItem.id, submittedStartDate, submittedEndDate, requestedQty, f.id);
+          var dayListDays = shortfallDays.length > 0 ? shortfallDays.map(function (s) { return fmtDate(s.date); }).join(', ') : (fmtDate(submittedStartDate) + ' – ' + fmtDate(submittedEndDate));
+          customAlert('Not enough ' + chosenItem.name + ' on hand: ' + requestedQty + ' requested, but only ' + preciseAvail + ' available on ' + dayListDays + '. Adjust the quantity, dates, or times before saving.');
+          return;
+        }
+      }
+
+      var selectedComponentIds = [];
+      if (chosenItem && chosenItem.components && chosenItem.components.length > 0) {
+        chosenItem.components.forEach(function (c) {
+          var chk = overlay.querySelector('.bl-component-check[data-component-id="' + c.id + '"]');
+          if (chk && chk.checked) selectedComponentIds.push(c.id);
+        });
+        if (selectedComponentIds.length === 0) {
+          customAlert('Please select at least one piece of ' + chosenItem.name + '.');
+          return;
+        }
+        var componentOverages = [];
+        chosenItem.components.forEach(function (c) {
+          if (selectedComponentIds.indexOf(c.id) === -1) return;
+          var out = componentOutForDateRange(chosenItem.id, c.id, fd.get('startDate'), fd.get('endDate'), f.id);
+          if (out >= 1) componentOverages.push(c.name);
+        });
+        if (componentOverages.length > 0) {
+          customAlert('Already booked for these dates: ' + componentOverages.join(', ') + '. Adjust the dates or deselect that piece.');
+          return;
+        }
+      }
+
+      var data = {
+        customerName: fd.get('customerName').trim(),
+        source: fd.get('source') || '',
+        itemId: fd.get('itemId'),
+        qty: Number(fd.get('qty')) || 1,
+        components: selectedComponentIds.length > 0 ? selectedComponentIds : undefined,
+        startDate: fd.get('startDate'),
+        endDate: fd.get('endDate'),
+        pickupTime: fd.get('pickupTime'),
+        dropoffTime: fd.get('dropoffTime'),
+        price: Number(fd.get('price')) || 0,
+        depositAmount: DEPOSIT_AMOUNT,
+        depositPaid: fd.get('depositPaid') === 'on',
+        yoodlize: fd.get('yoodlize') === 'on',
+        safetyDeposit: Number(fd.get('safetyDeposit')) || 0,
+        notes: fd.get('notes').trim(),
+        addons: selectedAddons,
+      };
+      if (data.yoodlize) {
+        data.depositAmount = 0;
+        data.depositPaid = false;
+        data.safetyDeposit = 0;
+        data.yoodlizeFee = Number(fd.get('yoodlizeFee')) || 0;
+      } else {
+        data.yoodlizeFee = 0;
+      }
+      if (!data.customerName) { customAlert('Add a customer name.'); return; }
+      if (isEdit) {
+        Object.assign(rental, data);
+      } else {
+        state.rentals.push(Object.assign({
+          id: uid(), depositPaid: true, pickedUp: false, itemReturned: false, depositRefunded: false,
+        }, data));
+      }
+      storageSet('rentals', state.rentals);
+      closeModal();
+      render();
+    });
+  }
+
+  function openItemModal(item) {
+    closeModal();
+    var isEdit = !!item;
+    var f = item || { name: '', total: 0, price: '', color: PALETTE[state.inventory.length % PALETTE.length], safetyDepositRate: 50, components: [] };
+    var components = (f.components || []).map(function (c) { return Object.assign({}, c); });
+    var overlay = document.createElement('div');
+    overlay.className = 'bl-overlay';
+    overlay.id = 'bl-overlay';
+    var swatches = PALETTE.map(function (c) {
+      return '<button type="button" class="bl-swatch' + (c === f.color ? ' selected' : '') + '" data-color="' + c + '" style="background:' + c + ';"></button>';
+    }).join('');
+    overlay.innerHTML =
+      '<div class="bl-modal"><h2>' + (isEdit ? 'Edit item type' : 'Add item type') + '</h2>' +
+      '<form id="bl-item-form">' +
+      '<div class="bl-field"><label>Name</label><input name="name" value="' + esc(f.name) + '" placeholder="e.g. Movie Setup" required></div>' +
+      '<div class="bl-row2">' +
+      '<div class="bl-field"><label>Total count you own</label><input type="number" min="0" name="total" value="' + esc(f.total) + '"></div>' +
+      '<div class="bl-field"><label>Rental price ($ per day)</label><input type="number" step="0.01" min="0" name="price" value="' + esc(f.price) + '"></div>' +
+      '</div>' +
+      '<div class="bl-field"><label>Safety deposit ($ per unit, capped at ' + fmtMoney(SAFETY_DEPOSIT_CAP) + ')</label><input type="number" step="0.01" min="0" name="safetyDepositRate" value="' + esc(f.safetyDepositRate) + '"></div>' +
+      '<div class="bl-field"><label>Calendar color</label><div class="bl-swatch-row" id="bl-swatch-row">' + swatches + '</div>' +
+      '<input type="hidden" name="color" id="bl-color-input" value="' + esc(f.color) + '"></div>' +
+      '<div class="bl-field"><label>Individual pieces (optional — for renting parts separately)</label>' +
+      '<p style="font-size:11.5px;color:#5B6E68;margin:0 0 8px;">If added, the rental form will let you pick which pieces are going out and price will total automatically.</p>' +
+      '<div id="bl-components-list"></div>' +
+      '<button type="button" class="bl-add-cost-btn" id="bl-add-component">+ Add piece</button></div>' +
+      '<div class="bl-modal-actions">' +
+      '<div><button type="button" class="bl-cancel-btn" id="bl-cancel">Cancel</button>' +
+      (isEdit ? '<button type="button" class="bl-delete-btn" id="bl-delete-item" style="margin-left:12px;">Delete</button>' : '') +
+      '</div>' +
+      '<button type="submit" class="bl-save-btn">' + (isEdit ? 'Save' : 'Add') + '</button>' +
+      '</div></form></div>';
+    document.body.appendChild(overlay);
+
+    function renderComponentRows() {
+      var list = document.getElementById('bl-components-list');
+      list.innerHTML = components.map(function (c, idx) {
+        return '<div class="bl-row2" style="margin-bottom:8px;" data-comp-idx="' + idx + '">' +
+          '<input type="text" class="bl-comp-name" placeholder="e.g. Projector" value="' + esc(c.name) + '">' +
+          '<div style="display:flex;gap:6px;"><input type="number" step="0.01" min="0" class="bl-comp-price" placeholder="$/day" value="' + esc(c.price) + '" style="flex:1;">' +
+          '<button type="button" class="bl-size-remove bl-comp-remove" data-idx="' + idx + '" title="Remove">×</button></div>' +
+          '</div>';
+      }).join('') || '<div class="bl-addon-picker-empty">No pieces added yet.</div>';
+      list.querySelectorAll('.bl-comp-name').forEach(function (inp, idx) {
+        inp.addEventListener('input', function () { components[idx].name = inp.value; });
+      });
+      list.querySelectorAll('.bl-comp-price').forEach(function (inp, idx) {
+        inp.addEventListener('input', function () { components[idx].price = Number(inp.value) || 0; });
+      });
+      list.querySelectorAll('.bl-comp-remove').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          components.splice(Number(btn.getAttribute('data-idx')), 1);
+          renderComponentRows();
+        });
+      });
+    }
+    renderComponentRows();
+    document.getElementById('bl-add-component').addEventListener('click', function () {
+      components.push({ id: uid(), name: '', price: 0 });
+      renderComponentRows();
+    });
+
+    overlay.querySelectorAll('.bl-swatch').forEach(function (sw) {
+      sw.addEventListener('click', function () {
+        overlay.querySelectorAll('.bl-swatch').forEach(function (s) { s.classList.remove('selected'); });
+        sw.classList.add('selected');
+        document.getElementById('bl-color-input').value = sw.getAttribute('data-color');
+      });
+    });
+    overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) closeModal(); });
+    document.getElementById('bl-cancel').addEventListener('click', closeModal);
+    if (isEdit) document.getElementById('bl-delete-item').addEventListener('click', function () {
+      var inUse = state.rentals.some(function (r) { return r.itemId === item.id; });
+      var msg = inUse ? 'This item type is used by existing rentals — their item name will still show, but it will no longer count toward inventory. Delete anyway?' : 'Delete this item type?';
+      customConfirm(msg, function () {
+        state.inventory = state.inventory.filter(function (i) { return i.id !== item.id; });
+        storageSet('inventory', state.inventory);
+        closeModal();
+        render();
+      });
+    });
+    document.getElementById('bl-item-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(e.target);
+      var name = fd.get('name').trim();
+      if (!name) return;
+      var total = Number(fd.get('total')) || 0;
+      var price = Number(fd.get('price')) || 0;
+      var color = fd.get('color') || PALETTE[0];
+      var safetyDepositRate = Number(fd.get('safetyDepositRate')) || 0;
+      var cleanComponents = components.filter(function (c) { return c.name && c.name.trim(); }).map(function (c) { return { id: c.id || uid(), name: c.name.trim(), price: Number(c.price) || 0 }; });
+      if (isEdit) {
+        item.name = name; item.total = total; item.price = price; item.color = color; item.safetyDepositRate = safetyDepositRate; item.components = cleanComponents;
+      } else {
+        state.inventory.push({ id: uid(), name: name, total: total, price: price, color: color, safetyDepositRate: safetyDepositRate, components: cleanComponents });
+      }
+      storageSet('inventory', state.inventory);
+      closeModal();
+      render();
+    });
+  }
+
+  function openAddonModal(addon) {
+    closeModal();
+    var isEdit = !!addon;
+    var f = addon || { name: '', price: '', sizes: [], total: 0, sizeStock: {}, itemIds: [] };
+    var checkedItemIds = (!f.itemIds || f.itemIds.length === 0) ? state.inventory.map(function (i) { return i.id; }) : f.itemIds;
+    var initialSizeStock = Object.assign({}, f.sizeStock || {});
+    var overlay = document.createElement('div');
+    overlay.className = 'bl-overlay';
+    overlay.id = 'bl-overlay';
+    var itemChecksHtml = state.inventory.length === 0
+      ? '<div class="bl-addon-picker-empty">Add an item type first.</div>'
+      : state.inventory.map(function (i) {
+          return '<div class="bl-addon-picker-row"><label><input type="checkbox" class="bl-item-link-check" value="' + i.id + '"' + (checkedItemIds.indexOf(i.id) !== -1 ? ' checked' : '') + '>' + esc(i.name) + '</label></div>';
+        }).join('');
+    var hasSizesInitially = (f.sizes || []).length > 0;
+    overlay.innerHTML =
+      '<div class="bl-modal"><h2>' + (isEdit ? 'Edit add-on' : 'Add add-on') + '</h2>' +
+      '<form id="bl-addon-form">' +
+      '<div class="bl-field"><label>Name</label><input name="name" value="' + esc(f.name) + '" placeholder="e.g. Life Jacket" required></div>' +
+      '<div class="bl-field"><label>Price ($ per day)</label><input type="number" step="0.01" min="0" name="price" value="' + esc(f.price) + '"></div>' +
+      '<div class="bl-field"><label>Size options (optional)</label><input name="sizes" id="bl-sizes-input" value="' + esc((f.sizes || []).join(', ')) + '" placeholder="e.g. S, M, L, XL"></div>' +
+      '<div class="bl-field" id="bl-flat-qty-field" style="' + (hasSizesInitially ? 'display:none;' : '') + '"><label>Quantity you have</label><input type="number" min="0" name="total" id="bl-flat-qty-input" value="' + esc(f.total) + '"></div>' +
+      '<div class="bl-field" id="bl-size-qty-field" style="' + (hasSizesInitially ? '' : 'display:none;') + '"><label>Quantity per size</label><div class="bl-addon-picker" id="bl-size-qty-rows"></div></div>' +
+      '<div class="bl-field"><label>Available for</label><div class="bl-addon-picker">' + itemChecksHtml + '</div></div>' +
+      '<div class="bl-modal-actions">' +
+      '<div><button type="button" class="bl-cancel-btn" id="bl-cancel">Cancel</button>' +
+      (isEdit ? '<button type="button" class="bl-delete-btn" id="bl-delete-addon" style="margin-left:12px;">Delete</button>' : '') +
+      '</div>' +
+      '<button type="submit" class="bl-save-btn">' + (isEdit ? 'Save' : 'Add') + '</button>' +
+      '</div></form></div>';
+    document.body.appendChild(overlay);
+
+    function currentSizesList() {
+      return (overlay.querySelector('#bl-sizes-input').value || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    }
+    function rebuildSizeRows() {
+      var existing = {};
+      overlay.querySelectorAll('.bl-size-stock-input').forEach(function (inp) { existing[inp.getAttribute('data-size')] = inp.value; });
+      var sizes = currentSizesList();
+      var flatField = document.getElementById('bl-flat-qty-field');
+      var sizeField = document.getElementById('bl-size-qty-field');
+      if (sizes.length > 0) {
+        flatField.style.display = 'none';
+        sizeField.style.display = '';
+        var html = sizes.map(function (s) {
+          var val = existing.hasOwnProperty(s) ? existing[s] : (initialSizeStock[s] != null ? initialSizeStock[s] : 0);
+          return '<div class="bl-addon-picker-row"><label style="text-transform:none;font-weight:600;">' + esc(s) + '</label>' +
+            '<input type="number" min="0" class="bl-size-stock-input" data-size="' + esc(s) + '" value="' + val + '" style="width:70px;padding:6px 8px;"></div>';
+        }).join('');
+        document.getElementById('bl-size-qty-rows').innerHTML = html;
+      } else {
+        flatField.style.display = '';
+        sizeField.style.display = 'none';
+      }
+    }
+    rebuildSizeRows();
+    overlay.querySelector('#bl-sizes-input').addEventListener('input', rebuildSizeRows);
+
+    overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) closeModal(); });
+    document.getElementById('bl-cancel').addEventListener('click', closeModal);
+    if (isEdit) document.getElementById('bl-delete-addon').addEventListener('click', function () {
+      customConfirm('Delete this add-on? Rentals that already have it attached will keep their saved name and price.', function () {
+        state.addons = state.addons.filter(function (a) { return a.id !== addon.id; });
+        storageSet('addons', state.addons);
+        closeModal();
+        render();
+      });
+    });
+    document.getElementById('bl-addon-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(e.target);
+      var name = fd.get('name').trim();
+      if (!name) return;
+      var price = Number(fd.get('price')) || 0;
+      var sizes = currentSizesList();
+      var linkedIds = [];
+      overlay.querySelectorAll('.bl-item-link-check').forEach(function (chk) { if (chk.checked) linkedIds.push(chk.value); });
+      if (linkedIds.length === 0) { customAlert('Choose at least one item this add-on applies to.'); return; }
+      var data = { name: name, price: price, sizes: sizes, itemIds: linkedIds };
+      if (sizes.length > 0) {
+        var sizeStock = {};
+        overlay.querySelectorAll('.bl-size-stock-input').forEach(function (inp) { sizeStock[inp.getAttribute('data-size')] = Number(inp.value) || 0; });
+        data.sizeStock = sizeStock;
+        data.total = undefined;
+      } else {
+        data.total = Number(fd.get('total')) || 0;
+        data.sizeStock = undefined;
+      }
+      if (isEdit) {
+        Object.assign(addon, data);
+      } else {
+        state.addons.push(Object.assign({ id: uid() }, data));
+      }
+      storageSet('addons', state.addons);
+      closeModal();
+      render();
+    });
+  }
+
+  function openExpenseModal(expense, presetItemId) {
+    closeModal();
+    var isEdit = !!expense;
+    var thisYear = new Date().getFullYear();
+    var f = expense || { description: '', amount: '', itemId: presetItemId || '', year: thisYear };
+    var overlay = document.createElement('div');
+    overlay.className = 'bl-overlay';
+    overlay.id = 'bl-overlay';
+    var itemOptions = '<option value=""' + (!f.itemId ? ' selected' : '') + '>General / overhead</option>' +
+      state.inventory.map(function (i) { return '<option value="' + i.id + '"' + (i.id === f.itemId ? ' selected' : '') + '>' + esc(i.name) + '</option>'; }).join('');
+    var heading = isEdit ? 'Edit expense' : 'Add expense';
+    var yearOptions = '';
+    for (var y = thisYear + 1; y >= thisYear - 8; y--) {
+      yearOptions += '<option value="' + y + '"' + (y === Number(f.year) ? ' selected' : '') + '>' + y + '</option>';
+    }
+    overlay.innerHTML =
+      '<div class="bl-modal"><h2>' + heading + '</h2>' +
+      '<form id="bl-expense-form">' +
+      '<div class="bl-field"><label>What did you buy</label><input name="description" value="' + esc(f.description) + '" placeholder="e.g. New paddle board" required></div>' +
+      '<div class="bl-row2">' +
+      '<div class="bl-field"><label>Cost ($)</label><input type="number" step="0.01" min="0" name="amount" value="' + esc(f.amount) + '" required></div>' +
+      '<div class="bl-field"><label>Year purchased</label><select name="year">' + yearOptions + '</select></div>' +
+      '</div>' +
+      '<div class="bl-field"><label>Related to</label><select name="itemId">' + itemOptions + '</select></div>' +
+      '<div class="bl-modal-actions">' +
+      '<div><button type="button" class="bl-cancel-btn" id="bl-cancel">Cancel</button>' +
+      (isEdit ? '<button type="button" class="bl-delete-btn" id="bl-delete-expense" style="margin-left:12px;">Delete</button>' : '') +
+      '</div>' +
+      '<button type="submit" class="bl-save-btn">' + (isEdit ? 'Save' : 'Add') + '</button>' +
+      '</div></form></div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) closeModal(); });
+    document.getElementById('bl-cancel').addEventListener('click', closeModal);
+    if (isEdit) document.getElementById('bl-delete-expense').addEventListener('click', function () {
+      customConfirm('Delete this expense?', function () {
+        state.expenses = state.expenses.filter(function (x) { return x.id !== expense.id; });
+        storageSet('expenses', state.expenses);
+        closeModal();
+        render();
+      });
+    });
+    document.getElementById('bl-expense-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(e.target);
+      var description = fd.get('description').trim();
+      if (!description) return;
+      var data = {
+        description: description,
+        amount: Number(fd.get('amount')) || 0,
+        itemId: fd.get('itemId') || '',
+        year: Number(fd.get('year')) || thisYear,
+      };
+      if (isEdit) {
+        Object.assign(expense, data);
+      } else {
+        state.expenses.push(Object.assign({ id: uid() }, data));
+      }
+      storageSet('expenses', state.expenses);
+      closeModal();
+      render();
+    });
+  }
+
+  function openMonthPickerModal() {
+    closeModal();
+    var monthDate = parseISO(startOfMonth(state.monthCursor));
+    var curMonth = monthDate.getMonth();
+    var curYear = monthDate.getFullYear();
+    var monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    var overlay = document.createElement('div');
+    overlay.className = 'bl-overlay';
+    overlay.id = 'bl-overlay';
+    var monthOptions = monthNames.map(function (m, i) { return '<option value="' + i + '"' + (i === curMonth ? ' selected' : '') + '>' + m + '</option>'; }).join('');
+    var yearOptions = '';
+    for (var y = curYear + 5; y >= curYear - 10; y--) {
+      yearOptions += '<option value="' + y + '"' + (y === curYear ? ' selected' : '') + '>' + y + '</option>';
+    }
+    overlay.innerHTML =
+      '<div class="bl-modal"><h2>Jump to month</h2>' +
+      '<form id="bl-month-picker-form">' +
+      '<div class="bl-row2">' +
+      '<div class="bl-field"><label>Month</label><select name="month">' + monthOptions + '</select></div>' +
+      '<div class="bl-field"><label>Year</label><select name="year">' + yearOptions + '</select></div>' +
+      '</div>' +
+      '<div class="bl-modal-actions">' +
+      '<button type="button" class="bl-cancel-btn" id="bl-cancel">Cancel</button>' +
+      '<button type="submit" class="bl-save-btn">Go</button>' +
+      '</div></form></div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) closeModal(); });
+    document.getElementById('bl-cancel').addEventListener('click', closeModal);
+    document.getElementById('bl-month-picker-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(e.target);
+      var m = Number(fd.get('month'));
+      var y = Number(fd.get('year'));
+      var target = new Date(y, m, 1);
+      state.monthCursor = toISODate(target);
+      closeModal();
+      render();
+    });
+  }
+
+  function openFinanceYearPickerModal() {
+    closeModal();
+    var thisYear = new Date().getFullYear();
+    var curYear = state.financeYear;
+    var availableYears = financeYearsAvailable();
+    var minYear = availableYears.length ? Math.min.apply(null, availableYears) : thisYear;
+    var maxYear = Math.max(thisYear + 2, availableYears.length ? Math.max.apply(null, availableYears) : thisYear);
+    var overlay = document.createElement('div');
+    overlay.className = 'bl-overlay';
+    overlay.id = 'bl-overlay';
+    var yearOptions = '<option value="all"' + (!curYear ? ' selected' : '') + '>All time</option>';
+    for (var y = maxYear; y >= minYear - 5; y--) {
+      yearOptions += '<option value="' + y + '"' + (y === curYear ? ' selected' : '') + '>' + y + '</option>';
+    }
+    overlay.innerHTML =
+      '<div class="bl-modal"><h2>Jump to year</h2>' +
+      '<form id="bl-finance-year-form">' +
+      '<div class="bl-field"><label>Year</label><select name="year">' + yearOptions + '</select></div>' +
+      '<div class="bl-modal-actions">' +
+      '<button type="button" class="bl-cancel-btn" id="bl-cancel">Cancel</button>' +
+      '<button type="submit" class="bl-save-btn">Go</button>' +
+      '</div></form></div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) closeModal(); });
+    document.getElementById('bl-cancel').addEventListener('click', closeModal);
+    document.getElementById('bl-finance-year-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(e.target);
+      var val = fd.get('year');
+      state.financeYear = val === 'all' ? null : Number(val);
+      closeModal();
+      render();
+    });
+  }
+
+  function openDayOverflowPopup(dateStr) {
+    closeModal();
+    var detail = availabilityForDay(dateStr);
+    var overlay = document.createElement('div');
+    overlay.className = 'bl-overlay';
+    overlay.id = 'bl-overlay';
+    var rowsHtml = detail.booked.map(function (r) {
+      var item = state.inventory.find(function (i) { return i.id === r.itemId; });
+      var statusTag = r.cancelled ? ' <span class="bl-booking-status bl-booking-status-cancelled">(cancelled)</span>' : (r.itemReturned ? ' <span class="bl-booking-status bl-booking-status-done">(completed)</span>' : '');
+      var pickupLine = r.pickupTime ? fmtDate(r.startDate) + ' at ' + fmtTime(r.pickupTime) : fmtDate(r.startDate);
+      var dropoffLine = r.dropoffTime ? fmtDate(r.endDate) + ' at ' + fmtTime(r.dropoffTime) : fmtDate(r.endDate);
+      return '<div class="bl-day-booked-card bl-day-booked-clickable" data-rental-id="' + r.id + '">' +
+        '<div class="bl-day-booked-title">' + (item ? '<span class="bl-day-item-dot" style="background:' + item.color + '"></span>' : '') +
+        rentalItemLabel(r, item, r.itemName) + ' — ' + esc(r.customerName || 'Unnamed customer') + statusTag + '</div>' +
+        '<div class="bl-day-booked-meta"><span>Pick up: ' + pickupLine + '</span><span>Drop off: ' + dropoffLine + '</span></div>' +
+        '</div>';
+    }).join('');
+    overlay.innerHTML =
+      '<div class="bl-modal"><h2>' + fmtDateLong(dateStr) + '</h2>' +
+      (rowsHtml || '<div class="bl-day-booked-row">Nothing rented on this day.</div>') +
+      '<div class="bl-modal-actions"><button type="button" class="bl-cancel-btn" id="bl-overflow-close" style="width:100%;">Close</button></div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) closeModal(); });
+    document.getElementById('bl-overflow-close').addEventListener('click', closeModal);
+    overlay.querySelectorAll('[data-rental-id]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var id = el.getAttribute('data-rental-id');
+        var rental = state.rentals.find(function (r) { return r.id === id; });
+        if (rental) openRentalDetailModal(rental);
+      });
+    });
+  }
+
+  function openRentalDetailModal(r) {
+    closeModal();
+    var item = state.inventory.find(function (i) { return i.id === r.itemId; });
+    var addonsText = addonsSummary(r);
+    var overlay = document.createElement('div');
+    overlay.className = 'bl-overlay';
+    overlay.id = 'bl-overlay';
+    overlay.innerHTML =
+      '<div class="bl-modal">' +
+      '<div class="bl-detail-header">' +
+      '<h2 style="margin-bottom:2px;">' + esc(r.customerName || 'Unnamed customer') + '</h2>' +
+      '<div class="bl-card-meta">' + (item ? '<span class="bl-item-dot" style="background:' + item.color + '"></span>' : '') + rentalItemLabel(r, item, r.itemName) + (r.source ? ' · ' + esc(r.source) : '') + '</div>' +
+      (addonsText ? '<div class="bl-card-addons">+ ' + esc(addonsText) + '</div>' : '') +
+      '<div class="bl-card-dates" style="margin-top:6px;">' + fmtDate(r.startDate) + (r.pickupTime ? ' ' + fmtTime(r.pickupTime) : '') + ' → ' + fmtDate(r.endDate) + (r.dropoffTime ? ' ' + fmtTime(r.dropoffTime) : '') + '</div>' +
+      '<div class="bl-card-money" style="margin-top:6px;">Total <b>' + fmtMoney(r.price) + '</b> · Safety deposit <b>' + fmtMoney(r.safetyDeposit) + '</b>' +
+      (!r.pickedUp && !r.cancelled ? ' · Collect <b>' + fmtMoney(amountToCollect(r)) + '</b>' : '') +
+      (r.yoodlize ? ' · <b>Yoodlize</b>' + (Number(r.yoodlizeFee) > 0 ? ' (fee ' + fmtMoney(r.yoodlizeFee) + ')' : '') : '') +
+      (r.notes ? ' · ' + esc(r.notes) : '') + '</div>' +
+      '</div>' +
+      '<div class="bl-detail-status">' + renderRentalStatusBlock(r, true) + '</div>' +
+      '<div class="bl-modal-actions">' +
+      '<button type="button" class="bl-cancel-btn" id="bl-detail-close" style="width:100%;">Close</button>' +
+      '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) closeModal(); });
+    document.getElementById('bl-detail-close').addEventListener('click', closeModal);
+    bindDetailModalActions(overlay, r);
+  }
+
+  function bindDetailModalActions(overlay, r) {
+    var editBtn = overlay.querySelector('[data-action="edit-rental"]');
+    if (editBtn) editBtn.addEventListener('click', function () {
+      closeModal();
+      openRentalModal(r);
+    });
+    overlay.querySelectorAll('[data-action="undo-step"]').forEach(function (dot) {
+      dot.addEventListener('click', function () {
+        var step = dot.getAttribute('data-step');
+        var idx = STEPS.findIndex(function (s) { return s.key === step; });
+        var laterDone = STEPS.slice(idx + 1).some(function (s) { return r[s.key]; });
+        var msg = 'Undo "' + STEPS[idx].label + '"?' + (laterDone ? ' This will also undo the later steps after it.' : '');
+        customConfirm(msg, function () {
+          for (var j = idx; j < STEPS.length; j++) { r[STEPS[j].key] = false; }
+          if (step === 'itemReturned') r.depositRefunded = false;
+          storageSet('rentals', state.rentals);
+          render();
+          openRentalDetailModal(r);
+        });
+      });
+    });
+    var cancelBtn = overlay.querySelector('[data-action="cancel-rental"]');
+    if (cancelBtn) cancelBtn.addEventListener('click', function () {
+      var keepsDeposit = r.depositPaid && !r.yoodlize;
+      var msg = 'Mark this rental as cancelled?' + (keepsDeposit ? ' You will keep the ' + fmtMoney(r.depositAmount) + ' non-refundable reservation deposit.' : '');
+      customConfirm(msg, function () {
+        r.cancelled = true;
+        storageSet('rentals', state.rentals);
+        render();
+        openRentalDetailModal(r);
+      });
+    });
+    var advanceBtn = overlay.querySelector('[data-action="advance"]');
+    if (advanceBtn) advanceBtn.addEventListener('click', function () {
+      var step = advanceBtn.getAttribute('data-step');
+      r[step] = true;
+      if (step === 'itemReturned') r.depositRefunded = true;
+      storageSet('rentals', state.rentals);
+      render();
+      openRentalDetailModal(r);
+    });
+  }
+
+  function openHistoricalModal(entry, presetItemId) {
+    closeModal();
+    var isEdit = !!entry;
+    var thisYear = new Date().getFullYear();
+    var item = state.inventory.find(function (i) { return i.id === (entry ? entry.itemId : presetItemId); });
+    var f = entry || { itemId: presetItemId || '', year: state.financeYear || thisYear, rentalCount: '', revenue: '' };
+    var overlay = document.createElement('div');
+    overlay.className = 'bl-overlay';
+    overlay.id = 'bl-overlay';
+    var yearOptions = '';
+    for (var y = thisYear + 1; y >= thisYear - 8; y--) {
+      yearOptions += '<option value="' + y + '"' + (y === Number(f.year) ? ' selected' : '') + '>' + y + '</option>';
+    }
+    overlay.innerHTML =
+      '<div class="bl-modal"><h2>' + (isEdit ? 'Edit manual total' : 'Add manual total' + (item ? ' — ' + esc(item.name) : '')) + '</h2>' +
+      '<p style="font-size:12.5px;color:#5B6E68;margin-top:-6px;">For rentals from before you started tracking here — adds to your rental count and revenue (expenses you\'ve logged for this item will still be subtracted normally).</p>' +
+      '<form id="bl-historical-form">' +
+      '<div class="bl-row2">' +
+      '<div class="bl-field"><label>Year</label><select name="year">' + yearOptions + '</select></div>' +
+      '<div class="bl-field"><label>Number of rentals</label><input type="number" min="0" name="rentalCount" value="' + esc(f.rentalCount) + '"></div>' +
+      '</div>' +
+      '<div class="bl-field"><label>Revenue for that period ($)</label><input type="number" step="0.01" name="revenue" value="' + esc(f.revenue) + '"></div>' +
+      '<div class="bl-modal-actions">' +
+      '<div><button type="button" class="bl-cancel-btn" id="bl-cancel">Cancel</button>' +
+      (isEdit ? '<button type="button" class="bl-delete-btn" id="bl-delete-historical" style="margin-left:12px;">Delete</button>' : '') +
+      '</div>' +
+      '<button type="submit" class="bl-save-btn">' + (isEdit ? 'Save' : 'Add') + '</button>' +
+      '</div></form></div>';
+    document.body.appendChild(overlay);
+    overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) closeModal(); });
+    document.getElementById('bl-cancel').addEventListener('click', closeModal);
+    if (isEdit) document.getElementById('bl-delete-historical').addEventListener('click', function () {
+      customConfirm('Delete this manual total?', function () {
+        state.historicalAdjustments = state.historicalAdjustments.filter(function (h) { return h.id !== entry.id; });
+        storageSet('historicalAdjustments', state.historicalAdjustments);
+        closeModal();
+        render();
+      });
+    });
+    document.getElementById('bl-historical-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fd = new FormData(e.target);
+      var data = {
+        itemId: f.itemId,
+        year: Number(fd.get('year')) || thisYear,
+        rentalCount: Number(fd.get('rentalCount')) || 0,
+        revenue: Number(fd.get('revenue')) || 0,
+      };
+      if (isEdit) {
+        Object.assign(entry, data);
+      } else {
+        state.historicalAdjustments.push(Object.assign({ id: uid() }, data));
+      }
+      storageSet('historicalAdjustments', state.historicalAdjustments);
+      closeModal();
+      render();
+    });
+  }
+
+  document.getElementById('fab').addEventListener('click', function () { openRentalModal(null); });
+
+  load();
+})();
+</script>
+</body>
+</html>
