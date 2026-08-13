@@ -671,11 +671,12 @@
     var tag = document.getElementById('bl-cloud-tag');
     if (tag) { tag.outerHTML = cloudTagHTML(); }
   }
+  var lastCloudError = '';
   function cloudTagHTML() {
     if (!sb) return '<div class="bl-tag" id="bl-cloud-tag">Saved on this device</div>';
     if (cloudStatus === 'synced') return '<div class="bl-tag" id="bl-cloud-tag">Synced to cloud ✓</div>';
     if (cloudStatus === 'syncing') return '<div class="bl-tag" id="bl-cloud-tag">Syncing…</div>';
-    return '<div class="bl-tag bl-tag-offline" id="bl-cloud-tag" data-action="retry-sync">Not synced — tap to retry</div>';
+    return '<div class="bl-tag bl-tag-offline" id="bl-cloud-tag" data-action="retry-sync">Not synced — tap for details &amp; retry</div>';
   }
 
   async function storageGet(key) {
@@ -708,12 +709,13 @@
 
     setCloudStatus('syncing');
     try {
-      var res = await sb.from('kv_store').upsert({ key: key, value: value, updated_at: new Date().toISOString() });
+      var res = await sb.from('kv_store').upsert({ key: key, value: value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
       if (res.error) throw res.error;
       setCloudStatus('synced');
       return localOk;
     }
     catch (e) {
+      lastCloudError = (e && (e.message || e.error_description || e.details)) || JSON.stringify(e);
       if (attempt < 3) {
         await sleep(300 * Math.pow(2, attempt));
         return storageSet(key, value, attempt + 1);
@@ -2143,7 +2145,10 @@
     var retryBtn = document.querySelector('[data-action="retry-save"]');
     if (retryBtn) retryBtn.addEventListener('click', retryLastSave);
     var retrySyncBtn = document.querySelector('[data-action="retry-sync"]');
-    if (retrySyncBtn) retrySyncBtn.addEventListener('click', retrySync);
+    if (retrySyncBtn) retrySyncBtn.addEventListener('click', function () {
+      if (lastCloudError) alert('Sync error: ' + lastCloudError);
+      retrySync();
+    });
     document.querySelectorAll('[data-tab]').forEach(function (btn) {
       btn.addEventListener('click', function () { state.tab = btn.getAttribute('data-tab'); render(); });
     });
