@@ -334,14 +334,28 @@
   .bl-yoodlize-fee-field input { background: white; }
   .bl-deposit-check-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--teal-mid); }
   .bl-remaining-row { font-size: 12.5px; font-weight: 700; color: var(--teal-deep); background: var(--lagoon-soft); padding: 8px 12px; border-radius: 8px; margin: 2px 0 11px; }
+
+  .bl-tag.bl-tag-offline { color: var(--coral); cursor: pointer; text-decoration: underline; }
+  .bl-login { max-width: 320px; margin: 18vh auto 0; padding: 0 20px; text-align: center; }
+  .bl-login h1 { font-size: 28px; color: var(--teal-deep); margin: 0 0 4px; }
+  .bl-login p { color: #5B6E68; font-size: 13.5px; margin: 0 0 18px; }
+  .bl-login input { width: 100%; padding: 12px 14px; margin-bottom: 10px; border: 1.5px solid var(--line); border-radius: 8px; font-size: 15px; background: white; }
+  .bl-login button { width: 100%; padding: 12px; border: none; border-radius: 8px; background: var(--teal-deep); color: white; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .bl-login button:disabled { opacity: 0.6; }
+  .bl-login-error { background: #FBE4D9; color: #A8492A; padding: 8px 12px; border-radius: 8px; font-size: 12.5px; margin-bottom: 12px !important; }
 </style>
 </head>
 <body>
 <div id="root" class="bl-wrap"><p>Loading your rentals…</p></div>
 <button class="bl-fab" id="fab" title="New rental">+</button>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function () {
+  var SUPABASE_URL = 'https://xvqsnewwytlbtxierorw.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_Nym_zaT5cB3PvznDLUEnZg_ylnejau2';
+  var sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+  var sbSession = null;
   var STEPS = [
     { key: 'depositPaid', label: 'Reservation' },
     { key: 'pickedUp', label: 'Picked up' },
@@ -641,10 +655,7 @@
   }
 
   var LS_PREFIX = 'rental-log:';
-  function hasArtifactStorage() {
-    try { return !!(window.storage && typeof window.storage.get === 'function' && typeof window.storage.set === 'function'); }
-    catch (e) { return false; }
-  }
+  function cloudReady() { return !!(sb && sbSession); }
   function lsGet(key) {
     try { var raw = localStorage.getItem(LS_PREFIX + key); return raw ? JSON.parse(raw) : null; }
     catch (e) { return null; }
@@ -654,12 +665,24 @@
     catch (e) { return false; }
   }
 
+  var cloudStatus = 'unconfigured';
+  function setCloudStatus(s) {
+    cloudStatus = s;
+    var tag = document.getElementById('bl-cloud-tag');
+    if (tag) { tag.outerHTML = cloudTagHTML(); }
+  }
+  function cloudTagHTML() {
+    if (!sb) return '<div class="bl-tag" id="bl-cloud-tag">Saved on this device</div>';
+    if (cloudStatus === 'synced') return '<div class="bl-tag" id="bl-cloud-tag">Synced to cloud ✓</div>';
+    if (cloudStatus === 'syncing') return '<div class="bl-tag" id="bl-cloud-tag">Syncing…</div>';
+    return '<div class="bl-tag bl-tag-offline" id="bl-cloud-tag" data-action="retry-sync">Not synced — tap to retry</div>';
+  }
+
   async function storageGet(key) {
-    if (hasArtifactStorage()) {
+    if (cloudReady()) {
       try {
-        var r = await window.storage.get(key, false);
-        if (r && r.value) return JSON.parse(r.value);
-        return null;
+        var res = await sb.from('kv_store').select('value').eq('key', key).maybeSingle();
+        if (!res.error && res.data) { lsSet(key, res.data.value); return res.data.value; }
       }
       catch (e) { /* fall through to local storage */ }
     }
@@ -671,34 +694,45 @@
 
   async function storageSet(key, value, attempt) {
     attempt = attempt || 0;
-    if (!hasArtifactStorage()) {
-      var ok = lsSet(key, value);
-      if (ok) {
-        showSaveToast();
-        if (state.error) { state.error = ''; lastFailedSave = null; render(); }
-      } else {
-        lastFailedSave = { key: key, value: value };
-        state.error = 'Could not save your last change (' + key + '). Your browser storage may be full or blocked.';
-        render();
-      }
-      return ok;
-    }
-    try {
-      await window.storage.set(key, JSON.stringify(value), false);
+    var localOk = lsSet(key, value);
+    if (localOk) {
       showSaveToast();
       if (state.error) { state.error = ''; lastFailedSave = null; render(); }
-      return true;
+    } else {
+      lastFailedSave = { key: key, value: value };
+      state.error = 'Could not save your last change (' + key + '). Your browser storage may be full or blocked.';
+      render();
+    }
+
+    if (!cloudReady()) return localOk;
+
+    setCloudStatus('syncing');
+    try {
+      var res = await sb.from('kv_store').upsert({ key: key, value: value, updated_at: new Date().toISOString() });
+      if (res.error) throw res.error;
+      setCloudStatus('synced');
+      return localOk;
     }
     catch (e) {
       if (attempt < 3) {
         await sleep(300 * Math.pow(2, attempt));
         return storageSet(key, value, attempt + 1);
       }
-      lastFailedSave = { key: key, value: value };
-      state.error = 'Could not save your last change (' + key + '). Tap retry below, or check your connection.';
-      render();
-      return false;
+      lastCloudFailure = { key: key, value: value };
+      setCloudStatus('offline');
+      return localOk;
     }
+  }
+
+  var lastCloudFailure = null;
+  async function retrySync() {
+    if (!cloudReady()) return;
+    var pending = lastCloudFailure;
+    lastCloudFailure = null;
+    if (pending) { await storageSet(pending.key, pending.value); return; }
+    setCloudStatus('syncing');
+    var keys = ['inventory', 'addons', 'rentals', 'expenses', 'historicalAdjustments'];
+    for (var i = 0; i < keys.length; i++) { await storageSet(keys[i], state[keys[i]]); }
   }
 
   async function retryLastSave() {
@@ -965,6 +999,11 @@
     state.monthCursor = startOfMonth(todayStr);
     state.selectedDay = todayStr;
     render();
+
+    if (cloudReady()) {
+      var firstSyncKeys = ['inventory', 'addons', 'rentals', 'expenses', 'historicalAdjustments'];
+      for (var i = 0; i < firstSyncKeys.length; i++) { storageSet(firstSyncKeys[i], state[firstSyncKeys[i]]); }
+    }
   }
 
   function availabilityForDay(dateStr) {
@@ -1378,7 +1417,7 @@
 
     var html = '';
     html += '<div class="bl-header"><div><h1 class="bl-display">Rental Log</h1>' +
-      '<div class="bl-tag">' + (hasArtifactStorage() ? 'Synced via Claude' : 'Saved on this device') + '</div></div>' +
+      cloudTagHTML() + '</div>' +
       '</div>';
 
     if (state.error) html += '<div class="bl-banner">' + esc(state.error) + (lastFailedSave ? ' <button type="button" class="bl-retry-btn" data-action="retry-save">Retry</button>' : '') + '</div>';
@@ -2103,6 +2142,8 @@
   function bindEvents() {
     var retryBtn = document.querySelector('[data-action="retry-save"]');
     if (retryBtn) retryBtn.addEventListener('click', retryLastSave);
+    var retrySyncBtn = document.querySelector('[data-action="retry-sync"]');
+    if (retrySyncBtn) retrySyncBtn.addEventListener('click', retrySync);
     document.querySelectorAll('[data-tab]').forEach(function (btn) {
       btn.addEventListener('click', function () { state.tab = btn.getAttribute('data-tab'); render(); });
     });
@@ -3485,7 +3526,45 @@
 
   document.getElementById('fab').addEventListener('click', function () { openRentalModal(null); });
 
-  load();
+  function renderLogin(errorMsg) {
+    var root = document.getElementById('root');
+    root.innerHTML =
+      '<div class="bl-login">' +
+        '<h1>Rental Log</h1>' +
+        '<p>Log in to view your rentals</p>' +
+        (errorMsg ? '<div class="bl-login-error">' + esc(errorMsg) + '</div>' : '') +
+        '<input id="bl-login-email" type="email" placeholder="Email" autocomplete="username">' +
+        '<input id="bl-login-pass" type="password" placeholder="Password" autocomplete="current-password">' +
+        '<button type="button" id="bl-login-btn">Log In</button>' +
+      '</div>';
+    document.getElementById('bl-login-btn').addEventListener('click', doLogin);
+    document.getElementById('bl-login-pass').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+  }
+
+  async function doLogin() {
+    var email = document.getElementById('bl-login-email').value.trim();
+    var pass = document.getElementById('bl-login-pass').value;
+    if (!email || !pass) return;
+    var btn = document.getElementById('bl-login-btn');
+    btn.disabled = true; btn.textContent = 'Logging in…';
+    var res = await sb.auth.signInWithPassword({ email: email, password: pass });
+    if (res.error) { renderLogin(res.error.message); return; }
+    sbSession = res.data.session;
+    cloudStatus = 'synced';
+    load();
+  }
+
+  async function boot() {
+    if (!sb) { load(); return; }
+    var s = await sb.auth.getSession();
+    sbSession = s.data.session;
+    if (!sbSession) { renderLogin(); return; }
+    cloudStatus = 'synced';
+    sb.auth.onAuthStateChange(function (event, session) { sbSession = session; });
+    load();
+  }
+
+  boot();
 })();
 </script>
 </body>
