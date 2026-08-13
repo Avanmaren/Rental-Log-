@@ -669,7 +669,14 @@
   function setCloudStatus(s) {
     cloudStatus = s;
     var tag = document.getElementById('bl-cloud-tag');
-    if (tag) { tag.outerHTML = cloudTagHTML(); }
+    if (tag) { tag.outerHTML = cloudTagHTML(); bindCloudTag(); }
+  }
+  function bindCloudTag() {
+    var el = document.querySelector('[data-action="retry-sync"]');
+    if (el) el.addEventListener('click', function () {
+      if (lastCloudError) alert('Sync error: ' + lastCloudError);
+      retrySync();
+    });
   }
   var lastCloudError = '';
   function cloudTagHTML() {
@@ -2144,11 +2151,7 @@
   function bindEvents() {
     var retryBtn = document.querySelector('[data-action="retry-save"]');
     if (retryBtn) retryBtn.addEventListener('click', retryLastSave);
-    var retrySyncBtn = document.querySelector('[data-action="retry-sync"]');
-    if (retrySyncBtn) retrySyncBtn.addEventListener('click', function () {
-      if (lastCloudError) alert('Sync error: ' + lastCloudError);
-      retrySync();
-    });
+    bindCloudTag();
     document.querySelectorAll('[data-tab]').forEach(function (btn) {
       btn.addEventListener('click', function () { state.tab = btn.getAttribute('data-tab'); render(); });
     });
