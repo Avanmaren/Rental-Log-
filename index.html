@@ -2713,7 +2713,7 @@
     var autoDropoffTime = !isEdit;
     if (pickupHiddenInput && dropoffHiddenInput && pickupWrapperEl && dropoffWrapper) {
       dropoffWrapper._onUserChange = function () { autoDropoffTime = false; };
-      pickupWrapperEl._onClose = function () {
+      pickupHiddenInput.addEventListener('change', function () {
         if (!pickupHiddenInput.value) return;
         if (isSameDayRental()) {
           if (!dropoffHiddenInput.value || dropoffHiddenInput.value <= pickupHiddenInput.value) {
@@ -2722,13 +2722,20 @@
         } else if (autoDropoffTime) {
           dropoffWrapper._setTimeValue(pickupHiddenInput.value);
         }
-      };
+      });
       dropoffWrapper._onClose = function () {
         if (!isSameDayRental() || !pickupHiddenInput.value) return;
         if (dropoffHiddenInput.value && dropoffHiddenInput.value <= pickupHiddenInput.value) {
           dropoffWrapper._setTimeValue(addOneHour(pickupHiddenInput.value), { silent: true });
         }
       };
+      var pickupDoneBtn = pickupWrapperEl.querySelector('.bl-time-done-btn');
+      if (pickupDoneBtn) {
+        pickupDoneBtn.addEventListener('click', function () {
+          var dropoffTrigger = dropoffWrapper.querySelector('.bl-time-trigger');
+          if (dropoffTrigger) dropoffTrigger.click();
+        });
+      }
     }
 
     var autoPrice = !isEdit;
