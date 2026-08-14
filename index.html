@@ -1040,18 +1040,6 @@
     });
     return Object.keys(byTime).sort().map(function (time) { return { time: time, qty: byTime[time] }; });
   }
-  function itemOutOnDate(itemId, dateStr, excludeRentalId) {
-    var out = 0;
-    state.rentals.forEach(function (r) {
-      if (excludeRentalId && r.id === excludeRentalId) return;
-      if (r.itemReturned || r.cancelled) return;
-      if (r.itemId !== itemId) return;
-      if (!r.startDate || !r.endDate) return;
-      if (dateStr >= r.startDate && dateStr <= r.endDate) out += Number(r.qty) || 0;
-    });
-    return out;
-  }
-
   function availabilityForDay(dateStr) {
     var rows = state.inventory.map(function (item) {
       var out = 0;
@@ -1203,20 +1191,42 @@
   }
 
   function addonOutForDateRange(addonId, size, startDate, endDate, excludeRentalId) {
-    var out = 0;
     if (!startDate || !endDate) return 0;
-    state.rentals.forEach(function (r) {
-      if (excludeRentalId && r.id === excludeRentalId) return;
-      if (r.cancelled || r.itemReturned) return;
-      if (!r.startDate || !r.endDate) return;
-      if (r.endDate < startDate || r.startDate > endDate) return;
-      (r.addons || []).forEach(function (a) {
-        if (a.addonId !== addonId) return;
-        if (size !== undefined && a.size !== size) return;
-        out += Number(a.qty) || 0;
+    var addon = state.addons.find(function (a) { return a.id === addonId; });
+    if (!addon) return 0;
+    var total = size !== undefined ? addonSizeStock(addon, size) : addonStockTotal(addon);
+    var minAvail = total;
+    var d = startDate, guard = 0;
+    while (d <= endDate && guard < 730) {
+      guard++;
+      var alwaysOut = 0;
+      var events = [];
+      state.rentals.forEach(function (r) {
+        if (excludeRentalId && r.id === excludeRentalId) return;
+        if (r.cancelled || r.itemReturned) return;
+        if (!r.startDate || !r.endDate) return;
+        if (d < r.startDate || d > r.endDate) return;
+        var qty = 0;
+        (r.addons || []).forEach(function (a) {
+          if (a.addonId !== addonId) return;
+          if (size !== undefined && a.size !== size) return;
+          qty += Number(a.qty) || 0;
+        });
+        if (qty === 0) return;
+        var startsToday = r.startDate === d;
+        var endsToday = r.endDate === d;
+        if (!startsToday || !r.pickupTime) alwaysOut += qty;
+        else events.push({ time: r.pickupTime, delta: -qty });
+        if (endsToday && r.dropoffTime) events.push({ time: r.dropoffTime, delta: qty });
       });
-    });
-    return out;
+      events.sort(function (a, b) { return a.time.localeCompare(b.time); });
+      var running = total - alwaysOut;
+      var dayMin = Math.max(running, 0);
+      events.forEach(function (e) { running += e.delta; if (Math.max(running, 0) < dayMin) dayMin = Math.max(running, 0); });
+      if (dayMin < minAvail) minAvail = dayMin;
+      d = addDays(d, 1);
+    }
+    return Math.max(total - minAvail, 0);
   }
 
   function rentalDateTimeRange(r) {
@@ -1239,23 +1249,75 @@
     });
     return out;
   }
-  function itemOutForDateRange(itemId, startDate, endDate, excludeRentalId) {
-    var out = 0;
+  function itemDayTimeline(itemId, dateStr, excludeRentalId) {
+    var item = state.inventory.find(function (i) { return i.id === itemId; });
+    if (!item) return null;
+    var alwaysOut = 0;
+    var events = [];
     state.rentals.forEach(function (r) {
       if (excludeRentalId && r.id === excludeRentalId) return;
       if (r.cancelled || r.itemReturned) return;
       if (r.itemId !== itemId) return;
       if (!r.startDate || !r.endDate) return;
-      if (r.endDate < startDate || r.startDate > endDate) return;
-      out += Number(r.qty) || 0;
+      if (dateStr < r.startDate || dateStr > r.endDate) return;
+      var qty = Number(r.qty) || 0;
+      var startsToday = r.startDate === dateStr;
+      var endsToday = r.endDate === dateStr;
+      if (!startsToday || !r.pickupTime) {
+        alwaysOut += qty;
+      } else {
+        events.push({ time: r.pickupTime, delta: -qty });
+      }
+      if (endsToday && r.dropoffTime) {
+        events.push({ time: r.dropoffTime, delta: qty });
+      }
     });
-    return out;
+    events.sort(function (a, b) { return a.time.localeCompare(b.time); });
+    var running = item.total - alwaysOut;
+    var timeline = [{ time: '00:00', avail: Math.max(running, 0) }];
+    events.forEach(function (e) {
+      running += e.delta;
+      timeline.push({ time: e.time, avail: Math.max(running, 0) });
+    });
+    var minAvail = Math.min.apply(null, timeline.map(function (t) { return t.avail; }));
+    return { total: item.total, timeline: timeline, minAvail: minAvail };
+  }
+  function itemRangeAvailability(itemId, startDate, endDate, excludeRentalId) {
+    if (!startDate || !endDate) return null;
+    var best = null;
+    var d = startDate, guard = 0;
+    while (d <= endDate && guard < 730) {
+      guard++;
+      var day = itemDayTimeline(itemId, d, excludeRentalId);
+      if (day && (!best || day.minAvail < best.minAvail)) {
+        best = day;
+        best.date = d;
+      }
+      d = addDays(d, 1);
+    }
+    return best;
+  }
+  function timelineToSentence(timeline) {
+    if (timeline.length === 1) return timeline[0].avail + ' available all day';
+    var parts = [];
+    for (var i = 0; i < timeline.length; i++) {
+      if (i === 0) {
+        parts.push(timeline[0].avail + ' available until ' + fmtTime(timeline[1].time));
+      } else if (i === timeline.length - 1) {
+        parts.push(timeline[i].avail + ' from ' + fmtTime(timeline[i].time) + ' on');
+      } else {
+        parts.push(timeline[i].avail + ' until ' + fmtTime(timeline[i + 1].time));
+      }
+    }
+    return parts.join(', then ');
   }
   function itemOutForCandidate(itemId, candidateRental, excludeRentalId) {
     if (candidateRental.pickupTime && candidateRental.dropoffTime) {
       return itemOutForRental(itemId, candidateRental, excludeRentalId);
     }
-    return itemOutForDateRange(itemId, candidateRental.startDate, candidateRental.endDate, excludeRentalId);
+    var range = itemRangeAvailability(itemId, candidateRental.startDate, candidateRental.endDate, excludeRentalId);
+    if (!range) return 0;
+    return Math.max(range.total - range.minAvail, 0);
   }
 
   function itemShortfallDays(itemId, startDate, endDate, requestedQty, excludeRentalId) {
@@ -1280,31 +1342,6 @@
       d = addDays(d, 1);
     }
     return shortfalls;
-  }
-
-  function itemFreeUpTime(itemId, dateStr, requestedQty, excludeRentalId) {
-    var item = state.inventory.find(function (i) { return i.id === itemId; });
-    if (!item) return null;
-    var touching = state.rentals.filter(function (r) {
-      if (excludeRentalId && r.id === excludeRentalId) return false;
-      if (r.cancelled || r.itemReturned) return false;
-      if (r.itemId !== itemId) return false;
-      if (!r.startDate || !r.endDate) return false;
-      return dateStr >= r.startDate && dateStr <= r.endDate;
-    });
-    var baseOut = touching.reduce(function (sum, r) { return sum + (Number(r.qty) || 0); }, 0);
-    var endingToday = touching.filter(function (r) { return r.endDate === dateStr && r.dropoffTime; });
-    if (endingToday.length === 0) return null;
-    endingToday.sort(function (a, b) { return a.dropoffTime.localeCompare(b.dropoffTime); });
-    var runningOut = baseOut;
-    for (var i = 0; i < endingToday.length; i++) {
-      runningOut -= Number(endingToday[i].qty) || 0;
-      var availAfter = Math.max(item.total - runningOut, 0);
-      if (availAfter >= requestedQty) {
-        return { time: endingToday[i].dropoffTime, avail: availAfter };
-      }
-    }
-    return null;
   }
 
   function componentOutForDateRange(itemId, componentId, startDate, endDate, excludeRentalId) {
@@ -2861,28 +2898,19 @@
           if (!startDate || !endDate) {
             qtyNote.textContent = '';
           } else {
-            var checkDateForUntil = startDate;
-            var outThatDay = itemOutOnDate(item.id, checkDateForUntil, f.id);
-            var availThatDay = Math.max(item.total - outThatDay, 0);
-            var returnBuckets = returnBucketsForItemDay(item.id, checkDateForUntil, f.id);
-            if (returnBuckets.length > 0) {
-              var parts = [availThatDay + ' available all day'];
-              returnBuckets.forEach(function (b) { parts.push(b.qty + ' must be returned by ' + fmtTime(b.time)); });
-              qtyNote.textContent = parts.join('. ') + '.';
-              qtyNote.className = 'bl-qty-avail-note ' + (originalRequestedQty <= itemAvail ? 'bl-qty-avail-ok' : 'bl-qty-avail-none');
-            } else if (originalRequestedQty <= itemAvail) {
-              qtyNote.textContent = itemAvail + ' of ' + item.total + ' available for these dates';
-              qtyNote.className = 'bl-qty-avail-note bl-qty-avail-ok';
+            var range = itemRangeAvailability(item.id, startDate, endDate, f.id);
+            if (!range) {
+              qtyNote.textContent = '';
             } else {
-              var shortfalls = itemShortfallDays(item.id, startDate, endDate, originalRequestedQty, f.id);
-              var dayList = shortfalls.length > 0 ? shortfalls.map(function (s) { return fmtDate(s.date); }).join(', ') : (fmtDate(startDate) + ' – ' + fmtDate(endDate));
-              var worstAvail = shortfalls.length > 0 ? Math.min.apply(null, shortfalls.map(function (s) { return s.avail; })) : itemAvail;
-              var baseMsg = worstAvail <= 0
-                ? 'No ' + item.name.toLowerCase() + 's left on ' + dayList
-                : 'Only ' + worstAvail + ' available on ' + dayList;
-              var freeUp = shortfalls.length === 1 ? itemFreeUpTime(item.id, shortfalls[0].date, originalRequestedQty, f.id) : null;
-              qtyNote.textContent = baseMsg + (freeUp ? ' — ' + originalRequestedQty + ' available after ' + fmtTime(freeUp.time) : '');
-              qtyNote.className = 'bl-qty-avail-note bl-qty-avail-none';
+              var sentence = timelineToSentence(range.timeline);
+              var dateSuffix = startDate !== endDate ? ' on ' + fmtDate(range.date) : '';
+              if (originalRequestedQty <= range.minAvail) {
+                qtyNote.textContent = sentence + dateSuffix + '.';
+                qtyNote.className = 'bl-qty-avail-note bl-qty-avail-ok';
+              } else {
+                qtyNote.textContent = 'Only ' + range.minAvail + ' available' + dateSuffix + ' — ' + sentence + dateSuffix + '.';
+                qtyNote.className = 'bl-qty-avail-note bl-qty-avail-none';
+              }
             }
           }
         }
