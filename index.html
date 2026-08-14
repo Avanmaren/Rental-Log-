@@ -120,6 +120,9 @@
   .bl-done-tag { font-size: 12px; font-weight: 700; color: var(--teal-mid); background: var(--lagoon-soft); padding: 6px 10px; border-radius: 6px; }
   .bl-cancelled-tag { color: #A8492A; background: var(--coral-soft); }
   .bl-cancelled-banner { font-size: 12.5px; font-weight: 700; color: #A8492A; background: var(--coral-soft); padding: 8px 12px; border-radius: 8px; margin: 12px 0 2px; }
+  .bl-cancel-reason-options { display: flex; flex-wrap: wrap; gap: 8px; }
+  .bl-cancel-reason-btn { padding: 9px 14px; border-radius: 20px; border: 1.5px solid var(--line); background: var(--sand); color: var(--ink); font-size: 13.5px; font-weight: 600; cursor: pointer; }
+  .bl-cancel-reason-btn.selected { background: var(--teal-deep); border-color: var(--teal-deep); color: white; }
   .bl-cancel-btn-link { color: var(--coral) !important; }
 
   .bl-empty { text-align: center; padding: 46px 20px; color: #8A9490; }
@@ -481,12 +484,14 @@
     var ampmOptions = ['AM', 'PM'];
     var current = { h: hourCol.getAttribute('data-selected'), m: minCol.getAttribute('data-selected'), ap: ampmCol.getAttribute('data-selected') };
     var wheelInited = false;
+    var suppressUserChange = false;
     var hourColApi = null, minColApi = null, ampmColApi = null;
     function updateHidden() {
       var h12 = Number(current.h);
       var h24 = h12 % 12; if (current.ap === 'PM') h24 += 12;
       hidden.value = (h24 < 10 ? '0' + h24 : '' + h24) + ':' + current.m;
       trigger.innerHTML = esc(fmtTimeFull(hidden.value)) + ' <span class="bl-time-trigger-caret">▾</span>';
+      if (wrapper._onUserChange && !suppressUserChange) wrapper._onUserChange();
       hidden.dispatchEvent(new Event('change', { bubbles: true }));
     }
     wrapper._setTimeValue = function (timeStr24, opts) {
@@ -497,6 +502,8 @@
       current.m = m < 10 ? '0' + m : '' + m;
       current.ap = h24 >= 12 ? 'PM' : 'AM';
       if (wheelInited) {
+        suppressUserChange = true;
+        setTimeout(function () { suppressUserChange = false; }, 400);
         hourColApi.scrollToIndex(hourOptions.indexOf(current.h), true);
         minColApi.scrollToIndex(minOptions.indexOf(current.m), true);
         ampmColApi.scrollToIndex(ampmOptions.indexOf(current.ap), true);
@@ -1416,6 +1423,28 @@
     historicalAdjustmentsForItem(itemId, year).forEach(function (h) { total += Number(h.revenue) || 0; });
     return total;
   }
+  function otherAdjustmentsForYear(year) {
+    return state.historicalAdjustments.filter(function (h) {
+      if (h.itemId) return false;
+      if (year && Number(h.year) !== year) return false;
+      return true;
+    });
+  }
+  function otherRevenueForYear(year) {
+    var total = 0;
+    otherAdjustmentsForYear(year).forEach(function (h) { total += Number(h.revenue) || 0; });
+    return total;
+  }
+  function otherRevenueUpToYear(year) {
+    if (!year) return otherRevenueForYear(null);
+    var total = 0;
+    state.historicalAdjustments.forEach(function (h) {
+      if (h.itemId) return;
+      if (Number(h.year) > year) return;
+      total += Number(h.revenue) || 0;
+    });
+    return total;
+  }
   function expensesForItem(itemId, year) {
     var total = 0;
     state.expenses.forEach(function (e) {
@@ -1431,6 +1460,37 @@
       if (e.itemId) return;
       if (year && e.year && Number(e.year) > year) return;
       total += Number(e.amount) || 0;
+    });
+    return total;
+  }
+  function expensesForItemInYear(itemId, year) {
+    if (!year) return expensesForItem(itemId, null);
+    var total = 0;
+    state.expenses.forEach(function (e) {
+      if (e.itemId !== itemId) return;
+      if (Number(e.year) !== year) return;
+      total += Number(e.amount) || 0;
+    });
+    return total;
+  }
+  function generalExpensesInYear(year) {
+    if (!year) return generalExpenses(null);
+    var total = 0;
+    state.expenses.forEach(function (e) {
+      if (e.itemId) return;
+      if (Number(e.year) !== year) return;
+      total += Number(e.amount) || 0;
+    });
+    return total;
+  }
+  function yoodlizeFeesForItemUpToYear(itemId, year) {
+    if (!year) return yoodlizeFeesForItem(itemId, null);
+    var total = 0;
+    state.rentals.forEach(function (r) {
+      if (r.itemId !== itemId || !r.yoodlize || r.cancelled || !r.pickedUp) return;
+      var ry = rentalYear(r);
+      if (!ry || ry > year) return;
+      total += Number(r.yoodlizeFee) || 0;
     });
     return total;
   }
@@ -1555,7 +1615,7 @@
     var html = '';
     if (r.cancelled) {
       var keptAmt = r.depositPaid ? (Number(r.depositAmount) || 0) : 0;
-      html += '<div class="bl-cancelled-banner">Cancelled' + (keptAmt > 0 ? ' — kept ' + fmtMoney(keptAmt) + ' non-refundable reservation deposit' : '') + '</div>';
+      html += '<div class="bl-cancelled-banner">Cancelled' + (r.cancelReason ? ' — ' + esc(r.cancelReason) : '') + (keptAmt > 0 ? ' — kept ' + fmtMoney(keptAmt) + ' non-refundable reservation deposit' : '') + '</div>';
     } else {
       html += '<div class="bl-stepper">';
       STEPS.forEach(function (s, i) {
@@ -1974,7 +2034,7 @@
 
   function renderFinances() {
     var html = '';
-    var totalRevenue = 0, totalRevenueToDate = 0, totalItemExpenses = 0, totalYoodlizeFees = 0, totalRentalCount = 0, totalCancelCount = 0, totalHistProfit = 0;
+    var totalRevenue = 0, totalRevenueToDate = 0, totalItemExpenses = 0, totalItemExpensesThisYear = 0, totalYoodlizeFees = 0, totalYoodlizeFeesToDate = 0, totalRentalCount = 0, totalCancelCount = 0, totalHistProfit = 0;
     var year = state.financeYear;
 
     html += '<div class="bl-cal-nav">' +
@@ -2015,9 +2075,11 @@
       var itemExpenses = state.expenses.filter(function (e) { return e.itemId === item.id && (!year || !e.year || Number(e.year) <= year); });
       itemExpenses.sort(function (a, b) { return (Number(a.year) || 0) - (Number(b.year) || 0); });
       var exp = expensesForItem(item.id, year);
-      var profitThisYearItem = (rev + histRevenue) - yoodlizeFees - exp;
-      var profit = revenueToDate - yoodlizeFees - exp;
-      totalRevenue += rev + histRevenue; totalRevenueToDate += revenueToDate; totalItemExpenses += exp; totalYoodlizeFees += yoodlizeFees; totalRentalCount += rentalCount + histCount; totalCancelCount += cancelCount; totalHistProfit += histRevenue;
+      var expThisYear = expensesForItemInYear(item.id, year);
+      var yoodlizeFeesToDate = yoodlizeFeesForItemUpToYear(item.id, year);
+      var profitThisYearItem = (rev + histRevenue) - yoodlizeFees - expThisYear;
+      var profit = revenueToDate - yoodlizeFeesToDate - exp;
+      totalRevenue += rev + histRevenue; totalRevenueToDate += revenueToDate; totalItemExpenses += exp; totalItemExpensesThisYear += expThisYear; totalYoodlizeFees += yoodlizeFees; totalYoodlizeFeesToDate += yoodlizeFeesToDate; totalRentalCount += rentalCount + histCount; totalCancelCount += cancelCount; totalHistProfit += histRevenue;
       html += '<div class="bl-profit-card">' +
         '<div class="bl-profit-top"><span class="bl-item-dot" style="background:' + (item.color || 'var(--lagoon)') + '"></span><span class="bl-profit-name">' + esc(item.name) + '</span></div>' +
         '<div class="bl-profit-row"><span># of rentals</span><span>' + (rentalCount + histCount) + '</span></div>' +
@@ -2054,11 +2116,31 @@
         '</div>';
     });
 
-    var overhead = generalExpenses(year);
     html += '</div>';
 
-    var grandProfit = totalRevenueToDate - totalYoodlizeFees - totalItemExpenses - overhead;
-    var profitThisYear = totalRevenue - totalYoodlizeFees - totalItemExpenses - overhead;
+    var otherRevenue = otherRevenueForYear(year);
+    var otherRevenueToDate = otherRevenueUpToYear(year);
+    totalRevenue += otherRevenue;
+    totalRevenueToDate += otherRevenueToDate;
+
+    html += '<div class="bl-section-label">Other income</div>';
+    var otherEntries = otherAdjustmentsForYear(year);
+    if (otherEntries.length > 0) {
+      html += '<div class="bl-expense-lines">';
+      otherEntries.forEach(function (h) {
+        html += '<div class="bl-expense-line" data-action="edit-historical" data-id="' + h.id + '">' +
+          '<span>' + esc(h.description || 'Other income') + '<span class="bl-expense-line-date">' + h.year + '</span></span>' +
+          '<span>' + fmtMoney(h.revenue) + '</span></div>';
+      });
+      html += '</div>';
+    }
+    html += '<button type="button" class="bl-add-cost-btn" data-action="add-historical-general">+ Add manual total</button>';
+
+    var overhead = generalExpenses(year);
+    var overheadThisYear = generalExpensesInYear(year);
+
+    var grandProfit = totalRevenueToDate - totalYoodlizeFeesToDate - totalItemExpenses - overhead;
+    var profitThisYear = totalRevenue - totalYoodlizeFees - totalItemExpensesThisYear - overheadThisYear;
     html += '<div class="bl-profit-summary">' +
       '<div class="bl-profit-row"><span>Total rentals</span><span>' + totalRentalCount + '</span></div>' +
       (totalCancelCount > 0 ? '<div class="bl-profit-row"><span>Total cancellations</span><span>' + totalCancelCount + '</span></div>' : '') +
@@ -2202,10 +2284,9 @@
         var id = btn.getAttribute('data-id');
         var r = state.rentals.find(function (x) { return x.id === id; });
         if (!r) return;
-        var keepsDeposit = r.depositPaid && !r.yoodlize;
-        var msg = 'Mark this rental as cancelled?' + (keepsDeposit ? ' You will keep the ' + fmtMoney(r.depositAmount) + ' non-refundable reservation deposit.' : '');
-        customConfirm(msg, function () {
+        openCancelReasonModal(r, function (reason) {
           r.cancelled = true;
+          r.cancelReason = reason;
           storageSet('rentals', state.rentals);
           render();
         });
@@ -2278,6 +2359,26 @@
     if (monthPrevBtn) monthPrevBtn.addEventListener('click', function () { state.monthCursor = addMonths(state.monthCursor, -1); render(); });
     var monthNextBtn = document.querySelector('[data-action="month-next"]');
     if (monthNextBtn) monthNextBtn.addEventListener('click', function () { state.monthCursor = addMonths(state.monthCursor, 1); render(); });
+    var monthGridEl = document.querySelector('.bl-cal-month-weeks');
+    if (monthGridEl) {
+      var swipeStartX = null, swipeStartY = null;
+      monthGridEl.addEventListener('touchstart', function (e) {
+        if (e.touches.length !== 1) return;
+        swipeStartX = e.touches[0].clientX;
+        swipeStartY = e.touches[0].clientY;
+      }, { passive: true });
+      monthGridEl.addEventListener('touchend', function (e) {
+        if (swipeStartX === null) return;
+        var touch = e.changedTouches[0];
+        var dx = touch.clientX - swipeStartX;
+        var dy = touch.clientY - swipeStartY;
+        swipeStartX = null; swipeStartY = null;
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+          state.monthCursor = addMonths(state.monthCursor, dx < 0 ? 1 : -1);
+          render();
+        }
+      }, { passive: true });
+    }
     var monthTodayBtn = document.querySelector('[data-action="month-today"]');
     if (monthTodayBtn) monthTodayBtn.addEventListener('click', function () {
       var t = toISODate(new Date());
@@ -2379,6 +2480,8 @@
     document.querySelectorAll('[data-action="add-historical-for"]').forEach(function (btn) {
       btn.addEventListener('click', function () { openHistoricalModal(null, btn.getAttribute('data-item-id') || ''); });
     });
+    var addHistoricalGeneralBtn = document.querySelector('[data-action="add-historical-general"]');
+    if (addHistoricalGeneralBtn) addHistoricalGeneralBtn.addEventListener('click', function () { openHistoricalModal(null, '', 'other'); });
     setupDragReorder('.bl-dock', 'data-item-id', function () { return state.inventory; }, 'inventory');
     setupDragReorder('.bl-addon-row', 'data-addon-id', function () { return state.addons; }, 'addons');
   }
@@ -2426,6 +2529,60 @@
     document.getElementById('bl-confirm-yes').addEventListener('click', function () {
       dismiss();
       onConfirm();
+    });
+  }
+
+  function openCancelReasonModal(r, onCancelled) {
+    var existing = document.getElementById('bl-cancel-reason-overlay');
+    if (existing) existing.remove();
+    var keepsDeposit = r.depositPaid && !r.yoodlize;
+    var reasons = ['Weather', 'No show', 'Cancelled plans', 'Other'];
+    var overlay = document.createElement('div');
+    overlay.className = 'bl-overlay';
+    overlay.id = 'bl-cancel-reason-overlay';
+    overlay.style.zIndex = '10000';
+    overlay.innerHTML =
+      '<div class="bl-modal"><h2 style="margin-top:0;">Cancel rental</h2>' +
+      (keepsDeposit ? '<p style="font-size:13.5px;color:#5B6E68;margin:0 0 12px;">You will keep the ' + fmtMoney(r.depositAmount) + ' non-refundable reservation deposit.</p>' : '') +
+      '<div class="bl-field"><label>Reason for cancelling</label><div class="bl-cancel-reason-options">' +
+      reasons.map(function (reason) { return '<button type="button" class="bl-cancel-reason-btn" data-reason="' + esc(reason) + '">' + esc(reason) + '</button>'; }).join('') +
+      '</div></div>' +
+      '<div class="bl-field" id="bl-cancel-other-field" style="display:none;"><label>What happened</label><input id="bl-cancel-other-input" placeholder="Type the reason"></div>' +
+      '<div class="bl-modal-actions">' +
+      '<button type="button" class="bl-cancel-btn" id="bl-cancel-reason-close">Back</button>' +
+      '<button type="button" class="bl-save-btn" id="bl-cancel-reason-confirm" disabled>Confirm cancellation</button>' +
+      '</div></div>';
+    document.body.appendChild(overlay);
+    var selectedReason = null;
+    function dismiss() { overlay.remove(); }
+    overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) dismiss(); });
+    document.getElementById('bl-cancel-reason-close').addEventListener('click', dismiss);
+    var confirmBtn = document.getElementById('bl-cancel-reason-confirm');
+    var otherField = document.getElementById('bl-cancel-other-field');
+    var otherInput = document.getElementById('bl-cancel-other-input');
+    overlay.querySelectorAll('.bl-cancel-reason-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        overlay.querySelectorAll('.bl-cancel-reason-btn').forEach(function (b) { b.classList.remove('selected'); });
+        btn.classList.add('selected');
+        selectedReason = btn.getAttribute('data-reason');
+        if (selectedReason === 'Other') {
+          otherField.style.display = '';
+          otherInput.focus();
+          confirmBtn.disabled = !otherInput.value.trim();
+        } else {
+          otherField.style.display = 'none';
+          confirmBtn.disabled = false;
+        }
+      });
+    });
+    otherInput.addEventListener('input', function () {
+      if (selectedReason === 'Other') confirmBtn.disabled = !otherInput.value.trim();
+    });
+    confirmBtn.addEventListener('click', function () {
+      var reason = selectedReason === 'Other' ? otherInput.value.trim() : selectedReason;
+      if (!reason) return;
+      dismiss();
+      onCancelled(reason);
     });
   }
 
@@ -2553,14 +2710,16 @@
     var dropoffHiddenInput = overlay.querySelector('input[name="dropoffTime"]');
     var pickupWrapperEl = pickupHiddenInput ? pickupHiddenInput.closest('.bl-wheel-time-wrapper') : null;
     var dropoffWrapper = dropoffHiddenInput ? dropoffHiddenInput.closest('.bl-wheel-time-wrapper') : null;
+    var autoDropoffTime = !isEdit;
     if (pickupHiddenInput && dropoffHiddenInput && pickupWrapperEl && dropoffWrapper) {
+      dropoffWrapper._onUserChange = function () { autoDropoffTime = false; };
       pickupWrapperEl._onClose = function () {
         if (!pickupHiddenInput.value) return;
         if (isSameDayRental()) {
           if (!dropoffHiddenInput.value || dropoffHiddenInput.value <= pickupHiddenInput.value) {
             dropoffWrapper._setTimeValue(addOneHour(pickupHiddenInput.value));
           }
-        } else if (!dropoffHiddenInput.value) {
+        } else if (autoDropoffTime) {
           dropoffWrapper._setTimeValue(pickupHiddenInput.value);
         }
       };
@@ -2676,7 +2835,7 @@
             var relevantOwnTime = isSingleDay ? pickupTimeVal : dropoffTimeVal;
             var pickupBeforeThreshold = untilInfo && (!relevantOwnTime || relevantOwnTime < untilInfo.time);
             if (pickupBeforeThreshold) {
-              qtyNote.textContent = untilInfo.avail + '/' + item.total + ' free until ' + fmtTime(untilInfo.time) + ' on ' + fmtDate(checkDateForUntil) + ' — must be returned before then';
+              qtyNote.textContent = originalRequestedQty + ' must be returned by ' + fmtTime(untilInfo.time) + ' on ' + fmtDate(checkDateForUntil) + ' for another rental';
               qtyNote.className = 'bl-qty-avail-note bl-qty-avail-ok';
             } else if (originalRequestedQty <= itemAvail) {
               qtyNote.textContent = itemAvail + ' of ' + item.total + ' available for these dates';
@@ -3508,10 +3667,9 @@
     });
     var cancelBtn = overlay.querySelector('[data-action="cancel-rental"]');
     if (cancelBtn) cancelBtn.addEventListener('click', function () {
-      var keepsDeposit = r.depositPaid && !r.yoodlize;
-      var msg = 'Mark this rental as cancelled?' + (keepsDeposit ? ' You will keep the ' + fmtMoney(r.depositAmount) + ' non-refundable reservation deposit.' : '');
-      customConfirm(msg, function () {
+      openCancelReasonModal(r, function (reason) {
         r.cancelled = true;
+        r.cancelReason = reason;
         storageSet('rentals', state.rentals);
         render();
         openRentalDetailModal(r);
@@ -3528,12 +3686,12 @@
     });
   }
 
-  function openHistoricalModal(entry, presetItemId) {
+  function openHistoricalModal(entry, presetItemId, defaultCategory) {
     closeModal();
     var isEdit = !!entry;
     var thisYear = new Date().getFullYear();
-    var item = state.inventory.find(function (i) { return i.id === (entry ? entry.itemId : presetItemId); });
-    var f = entry || { itemId: presetItemId || '', year: state.financeYear || thisYear, rentalCount: '', revenue: '' };
+    var f = entry || { itemId: presetItemId || '', year: state.financeYear || thisYear, rentalCount: '', revenue: '', description: '' };
+    var category = isEdit ? (f.itemId ? 'rentals' : 'other') : (defaultCategory || 'rentals');
     var overlay = document.createElement('div');
     overlay.className = 'bl-overlay';
     overlay.id = 'bl-overlay';
@@ -3541,15 +3699,28 @@
     for (var y = thisYear + 1; y >= thisYear - 8; y--) {
       yearOptions += '<option value="' + y + '"' + (y === Number(f.year) ? ' selected' : '') + '>' + y + '</option>';
     }
+    var itemOptions = state.inventory.map(function (i) { return '<option value="' + i.id + '"' + (i.id === f.itemId ? ' selected' : '') + '>' + esc(i.name) + '</option>'; }).join('');
+    var revenueSign = (Number(f.revenue) || 0) < 0 ? -1 : 1;
     overlay.innerHTML =
-      '<div class="bl-modal"><h2>' + (isEdit ? 'Edit manual total' : 'Add manual total' + (item ? ' — ' + esc(item.name) : '')) + '</h2>' +
-      '<p style="font-size:12.5px;color:#5B6E68;margin-top:-6px;">For rentals from before you started tracking here — adds to your rental count and revenue (expenses you\'ve logged for this item will still be subtracted normally).</p>' +
+      '<div class="bl-modal"><h2>' + (isEdit ? 'Edit manual total' : 'Add manual total') + '</h2>' +
+      (isEdit ? '' : '<div class="bl-field"><label>Category</label><div class="bl-cancel-reason-options">' +
+        '<button type="button" class="bl-cancel-reason-btn' + (category === 'rentals' ? ' selected' : '') + '" data-category="rentals">Rentals</button>' +
+        '<button type="button" class="bl-cancel-reason-btn' + (category === 'other' ? ' selected' : '') + '" data-category="other">Other</button>' +
+        '</div></div>') +
+      '<p id="bl-hist-hint" style="font-size:12.5px;color:#5B6E68;margin-top:-6px;' + (category === 'other' ? 'display:none;' : '') + '">For rentals from before you started tracking here — adds to that item\'s rental count and revenue.</p>' +
       '<form id="bl-historical-form">' +
+      '<div class="bl-field" id="bl-hist-item-field"' + (category === 'other' ? ' style="display:none;"' : '') + '><label>Item</label><select name="itemId">' + itemOptions + '</select></div>' +
+      '<div class="bl-field" id="bl-hist-desc-field"' + (category === 'rentals' ? ' style="display:none;"' : '') + '><label>Description</label><input name="description" value="' + esc(f.description || '') + '" placeholder="e.g. Sold old gear, side income"></div>' +
       '<div class="bl-row2">' +
       '<div class="bl-field"><label>Year</label><select name="year">' + yearOptions + '</select></div>' +
-      '<div class="bl-field"><label>Number of rentals</label><input type="number" min="0" name="rentalCount" value="' + esc(f.rentalCount) + '"></div>' +
+      '<div class="bl-field" id="bl-hist-count-field"' + (category === 'other' ? ' style="display:none;"' : '') + '><label>Number of rentals</label><input type="number" min="0" name="rentalCount" value="' + esc(f.rentalCount) + '"></div>' +
       '</div>' +
-      '<div class="bl-field"><label>Revenue for that period ($)</label><input type="number" step="0.01" name="revenue" value="' + esc(f.revenue) + '"></div>' +
+      '<div class="bl-field"><label id="bl-hist-revenue-label">' + (category === 'other' ? 'Amount ($)' : 'Revenue for that period ($)') + '</label>' +
+      '<div class="bl-cancel-reason-options" style="margin-bottom:8px;">' +
+      '<button type="button" class="bl-cancel-reason-btn' + (revenueSign === 1 ? ' selected' : '') + '" data-sign="1">+ Profit</button>' +
+      '<button type="button" class="bl-cancel-reason-btn' + (revenueSign === -1 ? ' selected' : '') + '" data-sign="-1">− Loss</button>' +
+      '</div>' +
+      '<input type="number" step="0.01" min="0" name="revenue" value="' + esc(Math.abs(Number(f.revenue) || 0) || '') + '"></div>' +
       '<div class="bl-modal-actions">' +
       '<div><button type="button" class="bl-cancel-btn" id="bl-cancel">Cancel</button>' +
       (isEdit ? '<button type="button" class="bl-delete-btn" id="bl-delete-historical" style="margin-left:12px;">Delete</button>' : '') +
@@ -3559,6 +3730,24 @@
     document.body.appendChild(overlay);
     overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) closeModal(); });
     document.getElementById('bl-cancel').addEventListener('click', closeModal);
+    overlay.querySelectorAll('.bl-cancel-reason-btn[data-category]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        category = btn.getAttribute('data-category');
+        overlay.querySelectorAll('.bl-cancel-reason-btn[data-category]').forEach(function (b) { b.classList.toggle('selected', b === btn); });
+        var isOther = category === 'other';
+        document.getElementById('bl-hist-item-field').style.display = isOther ? 'none' : '';
+        document.getElementById('bl-hist-desc-field').style.display = isOther ? '' : 'none';
+        document.getElementById('bl-hist-count-field').style.display = isOther ? 'none' : '';
+        document.getElementById('bl-hist-revenue-label').textContent = isOther ? 'Amount ($)' : 'Revenue for that period ($)';
+        document.getElementById('bl-hist-hint').style.display = isOther ? 'none' : '';
+      });
+    });
+    overlay.querySelectorAll('.bl-cancel-reason-btn[data-sign]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        revenueSign = Number(btn.getAttribute('data-sign'));
+        overlay.querySelectorAll('.bl-cancel-reason-btn[data-sign]').forEach(function (b) { b.classList.toggle('selected', b === btn); });
+      });
+    });
     if (isEdit) document.getElementById('bl-delete-historical').addEventListener('click', function () {
       customConfirm('Delete this manual total?', function () {
         state.historicalAdjustments = state.historicalAdjustments.filter(function (h) { return h.id !== entry.id; });
@@ -3570,12 +3759,22 @@
     document.getElementById('bl-historical-form').addEventListener('submit', function (e) {
       e.preventDefault();
       var fd = new FormData(e.target);
-      var data = {
-        itemId: f.itemId,
-        year: Number(fd.get('year')) || thisYear,
-        rentalCount: Number(fd.get('rentalCount')) || 0,
-        revenue: Number(fd.get('revenue')) || 0,
-      };
+      var signedRevenue = Math.abs(Number(fd.get('revenue')) || 0) * revenueSign;
+      var data = category === 'other'
+        ? {
+            itemId: '',
+            description: (fd.get('description') || '').trim() || 'Other income',
+            year: Number(fd.get('year')) || thisYear,
+            rentalCount: 0,
+            revenue: signedRevenue,
+          }
+        : {
+            itemId: fd.get('itemId'),
+            description: '',
+            year: Number(fd.get('year')) || thisYear,
+            rentalCount: Number(fd.get('rentalCount')) || 0,
+            revenue: signedRevenue,
+          };
       if (isEdit) {
         Object.assign(entry, data);
       } else {
