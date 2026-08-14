@@ -482,7 +482,8 @@
           markSelected(recentered);
           setTimeout(function () { suppress = false; }, 50);
         } else {
-          scrollToIndex(logicalIdx, true);
+          col.scrollTo({ top: physicalIdx * WHEEL_ITEM_H, behavior: 'smooth' });
+          markSelected(physicalIdx);
         }
         onSettle(options[logicalIdx]);
       }, 100);
@@ -1322,7 +1323,7 @@
       if (i === 0) {
         parts.push(timeline[0].avail + ' available until ' + fmtTime(timeline[1].time));
       } else if (i === timeline.length - 1) {
-        parts.push(timeline[i].avail + ' from ' + fmtTime(timeline[i].time) + ' on');
+        parts.push(timeline[i].avail + ' from ' + fmtTime(timeline[i].time) + ' onward');
       } else {
         parts.push(timeline[i].avail + ' until ' + fmtTime(timeline[i + 1].time));
       }
@@ -2926,7 +2927,7 @@
                 qtyNote.textContent = sentence + dateSuffix + '.';
                 qtyNote.className = 'bl-qty-avail-note bl-qty-avail-ok';
               } else {
-                qtyNote.textContent = 'Only ' + range.minAvail + ' available' + dateSuffix + ' — ' + sentence + dateSuffix + '.';
+                qtyNote.textContent = 'Only ' + range.minAvail + ' available' + dateSuffix + ' — ' + sentence + '.';
                 qtyNote.className = 'bl-qty-avail-note bl-qty-avail-none';
               }
             }
