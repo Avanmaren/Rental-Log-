@@ -2861,8 +2861,7 @@
           if (!startDate || !endDate) {
             qtyNote.textContent = '';
           } else {
-            var isSingleDay = startDate === endDate;
-            var checkDateForUntil = isSingleDay ? startDate : endDate;
+            var checkDateForUntil = startDate;
             var outThatDay = itemOutOnDate(item.id, checkDateForUntil, f.id);
             var availThatDay = Math.max(item.total - outThatDay, 0);
             var returnBuckets = returnBucketsForItemDay(item.id, checkDateForUntil, f.id);
