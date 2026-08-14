@@ -333,6 +333,8 @@
   .bl-addon-qty { width: 52px !important; padding: 5px 6px !important; font-size: 13px !important; }
   .bl-addon-price { font-size: 12px; color: var(--teal-mid); font-weight: 700; white-space: nowrap; }
   .bl-addon-avail { color: #8A9490; font-weight: 600; }
+  .bl-addon-note { font-size: 10.5px; font-weight: 600; color: var(--teal-mid); margin: 2px 0 4px; line-height: 1.4; }
+  .bl-addon-note.bl-qty-avail-none { color: var(--coral); }
   .bl-subtotal-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 9px 12px; background: var(--lagoon-soft); border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--teal-deep); }
   .bl-price-breakdown { padding: 2px 12px 0; }
   .bl-breakdown-line { display: flex; justify-content: space-between; font-size: 12px; color: #5B6E68; padding: 3px 0; }
@@ -1211,42 +1213,76 @@
     return out;
   }
 
-  function addonOutForDateRange(addonId, size, startDate, endDate, excludeRentalId) {
-    if (!startDate || !endDate) return 0;
+  function addonDayTimeline(addonId, size, dateStr, excludeRentalId) {
     var addon = state.addons.find(function (a) { return a.id === addonId; });
-    if (!addon) return 0;
+    if (!addon) return null;
     var total = size !== undefined ? addonSizeStock(addon, size) : addonStockTotal(addon);
-    var minAvail = total;
+    var alwaysOut = 0;
+    var events = [];
+    state.rentals.forEach(function (r) {
+      if (excludeRentalId && r.id === excludeRentalId) return;
+      if (r.cancelled || r.itemReturned) return;
+      if (!r.startDate || !r.endDate) return;
+      if (dateStr < r.startDate || dateStr > r.endDate) return;
+      var qty = 0;
+      (r.addons || []).forEach(function (a) {
+        if (a.addonId !== addonId) return;
+        if (size !== undefined && a.size !== size) return;
+        qty += Number(a.qty) || 0;
+      });
+      if (qty === 0) return;
+      var startsToday = r.startDate === dateStr;
+      var endsToday = r.endDate === dateStr;
+      if (!startsToday || !r.pickupTime) alwaysOut += qty;
+      else events.push({ time: r.pickupTime, delta: -qty });
+      if (endsToday && r.dropoffTime) events.push({ time: r.dropoffTime, delta: qty });
+    });
+    events.sort(function (a, b) { return a.time.localeCompare(b.time); });
+    var running = total - alwaysOut;
+    var minAvail = Math.max(running, 0);
+    events.forEach(function (e) { running += e.delta; minAvail = Math.min(minAvail, Math.max(running, 0)); });
+    return { total: total, minAvail: minAvail };
+  }
+  function addonDayEvents(addonId, size, dateStr, excludeRentalId) {
+    var pickups = {}, dropoffs = {};
+    state.rentals.forEach(function (r) {
+      if (excludeRentalId && r.id === excludeRentalId) return;
+      if (r.cancelled || r.itemReturned) return;
+      if (!r.startDate || !r.endDate) return;
+      var qty = 0;
+      (r.addons || []).forEach(function (a) {
+        if (a.addonId !== addonId) return;
+        if (size !== undefined && a.size !== size) return;
+        qty += Number(a.qty) || 0;
+      });
+      if (qty === 0) return;
+      if (r.startDate === dateStr && r.pickupTime) pickups[r.pickupTime] = (pickups[r.pickupTime] || 0) + qty;
+      if (r.endDate === dateStr && r.dropoffTime) dropoffs[r.dropoffTime] = (dropoffs[r.dropoffTime] || 0) + qty;
+    });
+    var events = [];
+    Object.keys(pickups).forEach(function (t) { events.push({ time: t, qty: pickups[t], type: 'rented' }); });
+    Object.keys(dropoffs).forEach(function (t) { events.push({ time: t, qty: dropoffs[t], type: 'returned' }); });
+    events.sort(function (a, b) { return a.time.localeCompare(b.time); });
+    return events;
+  }
+  function addonRangeDayInfos(addonId, size, startDate, endDate, excludeRentalId) {
+    var days = [];
     var d = startDate, guard = 0;
     while (d <= endDate && guard < 730) {
       guard++;
-      var alwaysOut = 0;
-      var events = [];
-      state.rentals.forEach(function (r) {
-        if (excludeRentalId && r.id === excludeRentalId) return;
-        if (r.cancelled || r.itemReturned) return;
-        if (!r.startDate || !r.endDate) return;
-        if (d < r.startDate || d > r.endDate) return;
-        var qty = 0;
-        (r.addons || []).forEach(function (a) {
-          if (a.addonId !== addonId) return;
-          if (size !== undefined && a.size !== size) return;
-          qty += Number(a.qty) || 0;
-        });
-        if (qty === 0) return;
-        var startsToday = r.startDate === d;
-        var endsToday = r.endDate === d;
-        if (!startsToday || !r.pickupTime) alwaysOut += qty;
-        else events.push({ time: r.pickupTime, delta: -qty });
-        if (endsToday && r.dropoffTime) events.push({ time: r.dropoffTime, delta: qty });
-      });
-      events.sort(function (a, b) { return a.time.localeCompare(b.time); });
-      var running = total - alwaysOut;
-      var dayMin = Math.max(running, 0);
-      events.forEach(function (e) { running += e.delta; if (Math.max(running, 0) < dayMin) dayMin = Math.max(running, 0); });
-      if (dayMin < minAvail) minAvail = dayMin;
+      var day = addonDayTimeline(addonId, size, d, excludeRentalId);
+      if (day) days.push({ date: d, avail: day.minAvail, events: addonDayEvents(addonId, size, d, excludeRentalId) });
       d = addDays(d, 1);
     }
+    return days;
+  }
+  function addonOutForDateRange(addonId, size, startDate, endDate, excludeRentalId) {
+    if (!startDate || !endDate) return 0;
+    var days = addonRangeDayInfos(addonId, size, startDate, endDate, excludeRentalId);
+    if (days.length === 0) return 0;
+    var addon = state.addons.find(function (a) { return a.id === addonId; });
+    var total = addon ? (size !== undefined ? addonSizeStock(addon, size) : addonStockTotal(addon)) : 0;
+    var minAvail = Math.min.apply(null, days.map(function (d) { return d.avail; }));
     return Math.max(total - minAvail, 0);
   }
 
@@ -2742,7 +2778,8 @@
           '<label><input type="checkbox" class="bl-addon-check" data-addon-id="' + a.id + '"' + (checked ? ' checked' : '') + (avail <= 0 && !checked ? ' disabled' : '') + '>' + esc(a.name) + '</label>' +
           '<span class="bl-addon-price">' + fmtMoney(a.price) + '/day · <span class="bl-addon-avail" data-addon-id="' + a.id + '">' + avail + ' left</span></span>' +
           (!hasSizes ? '<input type="number" min="1" max="' + qtyMax + '" class="bl-addon-qty" data-addon-id="' + a.id + '" value="' + (checked ? (lines[0].qty || 1) : 1) + '">' : '') +
-          '</div>';
+          '</div>' +
+          (!hasSizes ? '<div class="bl-addon-note" data-addon-id="' + a.id + '" style="display:none;"></div>' : '');
         if (hasSizes) {
           block += '<div class="bl-addon-sizes" data-addon-id="' + a.id + '"' + (checked ? '' : ' style="display:none;"') + '>';
           if (lines.length > 0) {
@@ -3046,6 +3083,28 @@
           if (availSpan) availSpan.textContent = avail + ' left';
           if (checkbox) checkbox.disabled = avail <= 0 && !checkbox.checked;
           if (qtyInput2) qtyInput2.max = Math.max(avail, Number(qtyInput2.value) || 1);
+          var noteEl = overlay.querySelector('.bl-addon-note[data-addon-id="' + a.id + '"]');
+          if (noteEl) {
+            if (checkbox && checkbox.checked && startDate && endDate) {
+              var addonDays = addonRangeDayInfos(a.id, undefined, startDate, endDate, f.id);
+              var requestedQty = Number(qtyInput2 ? qtyInput2.value : 1) || 1;
+              var addonMinAvail = addonDays.length ? Math.min.apply(null, addonDays.map(function (d) { return d.avail; })) : addonStockTotal(a);
+              var addonWord = a.name.toLowerCase();
+              var addonLines = [];
+              addonDays.forEach(function (d) {
+                addonLines.push(esc(d.avail + ' ' + addonWord + (d.avail === 1 ? '' : 's') + ' available all day ' + fmtDate(d.date) + '.'));
+                d.events.forEach(function (e) {
+                  addonLines.push(esc(e.qty + ' ' + addonWord + (e.qty === 1 ? '' : 's') + ' ' + e.type + ' ' + fmtDate(d.date) + ' ' + fmtTime(e.time) + '.'));
+                });
+              });
+              noteEl.style.display = '';
+              noteEl.className = 'bl-addon-note ' + (requestedQty <= addonMinAvail ? '' : 'bl-qty-avail-none');
+              noteEl.innerHTML = addonLines.join('<br>');
+            } else {
+              noteEl.style.display = 'none';
+              noteEl.innerHTML = '';
+            }
+          }
         }
       });
     }
