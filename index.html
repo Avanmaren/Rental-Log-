@@ -1029,15 +1029,27 @@
     }
   }
 
-  function returnBucketsForItemDay(itemId, dateStr) {
+  function returnBucketsForItemDay(itemId, dateStr, excludeRentalId) {
     var byTime = {};
     state.rentals.forEach(function (r) {
+      if (excludeRentalId && r.id === excludeRentalId) return;
       if (r.itemReturned || r.cancelled) return;
       if (r.itemId !== itemId) return;
       if (r.endDate !== dateStr || !r.dropoffTime) return;
       byTime[r.dropoffTime] = (byTime[r.dropoffTime] || 0) + (Number(r.qty) || 0);
     });
     return Object.keys(byTime).sort().map(function (time) { return { time: time, qty: byTime[time] }; });
+  }
+  function itemOutOnDate(itemId, dateStr, excludeRentalId) {
+    var out = 0;
+    state.rentals.forEach(function (r) {
+      if (excludeRentalId && r.id === excludeRentalId) return;
+      if (r.itemReturned || r.cancelled) return;
+      if (r.itemId !== itemId) return;
+      if (!r.startDate || !r.endDate) return;
+      if (dateStr >= r.startDate && dateStr <= r.endDate) out += Number(r.qty) || 0;
+    });
+    return out;
   }
 
   function availabilityForDay(dateStr) {
@@ -1227,6 +1239,24 @@
     });
     return out;
   }
+  function itemOutForDateRange(itemId, startDate, endDate, excludeRentalId) {
+    var out = 0;
+    state.rentals.forEach(function (r) {
+      if (excludeRentalId && r.id === excludeRentalId) return;
+      if (r.cancelled || r.itemReturned) return;
+      if (r.itemId !== itemId) return;
+      if (!r.startDate || !r.endDate) return;
+      if (r.endDate < startDate || r.startDate > endDate) return;
+      out += Number(r.qty) || 0;
+    });
+    return out;
+  }
+  function itemOutForCandidate(itemId, candidateRental, excludeRentalId) {
+    if (candidateRental.pickupTime && candidateRental.dropoffTime) {
+      return itemOutForRental(itemId, candidateRental, excludeRentalId);
+    }
+    return itemOutForDateRange(itemId, candidateRental.startDate, candidateRental.endDate, excludeRentalId);
+  }
 
   function itemShortfallDays(itemId, startDate, endDate, requestedQty, excludeRentalId) {
     if (!startDate || !endDate) return [];
@@ -1275,25 +1305,6 @@
       }
     }
     return null;
-  }
-
-  function itemAvailableUntilTime(itemId, dateStr, requestedQty, excludeRentalId) {
-    var item = state.inventory.find(function (i) { return i.id === itemId; });
-    if (!item) return null;
-    var touching = state.rentals.filter(function (r) {
-      if (excludeRentalId && r.id === excludeRentalId) return false;
-      if (r.cancelled || r.itemReturned) return false;
-      if (r.itemId !== itemId) return false;
-      if (!r.startDate || !r.endDate) return false;
-      return dateStr >= r.startDate && dateStr <= r.endDate;
-    });
-    var ongoingOut = touching.filter(function (r) { return r.startDate !== dateStr; }).reduce(function (sum, r) { return sum + (Number(r.qty) || 0); }, 0);
-    var availNow = Math.max(item.total - ongoingOut, 0);
-    if (availNow < requestedQty) return null;
-    var startingToday = touching.filter(function (r) { return r.startDate === dateStr && r.pickupTime; });
-    if (startingToday.length === 0) return null;
-    startingToday.sort(function (a, b) { return a.pickupTime.localeCompare(b.pickupTime); });
-    return { time: startingToday[0].pickupTime, avail: availNow };
   }
 
   function componentOutForDateRange(itemId, componentId, startDate, endDate, excludeRentalId) {
@@ -2773,7 +2784,7 @@
       var hasComponents = item && item.components && item.components.length > 0;
       if (item && !hasComponents && startDate && endDate) {
         var qtyInputEarly = document.getElementById('bl-qty-input');
-        var earlyAvail = Math.max(item.total - itemOutForRental(item.id, { startDate: startDate, endDate: endDate, pickupTime: pickupTimeVal, dropoffTime: dropoffTimeVal }, f.id), 0);
+        var earlyAvail = Math.max(item.total - itemOutForCandidate(item.id, { startDate: startDate, endDate: endDate, pickupTime: pickupTimeVal, dropoffTime: dropoffTimeVal }, f.id), 0);
         if (qty > earlyAvail && document.activeElement !== qtyInputEarly) {
           qty = earlyAvail;
           qtyInputEarly.value = earlyAvail;
@@ -2838,7 +2849,7 @@
       if (item) refreshComponentsAvailabilityDisplay(item, startDate, endDate);
       if (item && !hasComponents) {
         var qtyInput2 = document.getElementById('bl-qty-input');
-        var alreadyOut = itemOutForRental(item.id, { startDate: startDate, endDate: endDate, pickupTime: pickupTimeVal, dropoffTime: dropoffTimeVal }, f.id);
+        var alreadyOut = itemOutForCandidate(item.id, { startDate: startDate, endDate: endDate, pickupTime: pickupTimeVal, dropoffTime: dropoffTimeVal }, f.id);
         var itemAvail = Math.max(item.total - alreadyOut, 0);
         qtyInput2.max = itemAvail;
         if (qty > itemAvail && document.activeElement !== qtyInput2) {
@@ -2852,16 +2863,14 @@
           } else {
             var isSingleDay = startDate === endDate;
             var checkDateForUntil = isSingleDay ? startDate : endDate;
-            var untilInfo = itemAvailableUntilTime(item.id, checkDateForUntil, originalRequestedQty, f.id);
-            if (untilInfo && !isSingleDay) {
-              var restOfRangeShortfalls = itemShortfallDays(item.id, startDate, addDays(endDate, -1), originalRequestedQty, f.id);
-              if (restOfRangeShortfalls.length > 0) untilInfo = null;
-            }
-            var relevantOwnTime = isSingleDay ? pickupTimeVal : dropoffTimeVal;
-            var pickupBeforeThreshold = untilInfo && (!relevantOwnTime || relevantOwnTime < untilInfo.time);
-            if (pickupBeforeThreshold) {
-              qtyNote.textContent = originalRequestedQty + ' must be returned by ' + fmtTime(untilInfo.time) + ' on ' + fmtDate(checkDateForUntil) + ' for another rental';
-              qtyNote.className = 'bl-qty-avail-note bl-qty-avail-ok';
+            var outThatDay = itemOutOnDate(item.id, checkDateForUntil, f.id);
+            var availThatDay = Math.max(item.total - outThatDay, 0);
+            var returnBuckets = returnBucketsForItemDay(item.id, checkDateForUntil, f.id);
+            if (returnBuckets.length > 0) {
+              var parts = [availThatDay + ' available all day'];
+              returnBuckets.forEach(function (b) { parts.push(b.qty + ' must be returned by ' + fmtTime(b.time)); });
+              qtyNote.textContent = parts.join('. ') + '.';
+              qtyNote.className = 'bl-qty-avail-note ' + (originalRequestedQty <= itemAvail ? 'bl-qty-avail-ok' : 'bl-qty-avail-none');
             } else if (originalRequestedQty <= itemAvail) {
               qtyNote.textContent = itemAvail + ' of ' + item.total + ' available for these dates';
               qtyNote.className = 'bl-qty-avail-note bl-qty-avail-ok';
@@ -3194,7 +3203,7 @@
       if (chosenItem && !hasItemComponents) {
         var requestedQty = Number(fd.get('qty')) || 1;
         var candidateForSubmit = { startDate: submittedStartDate, endDate: submittedEndDate, pickupTime: fd.get('pickupTime'), dropoffTime: fd.get('dropoffTime') };
-        var preciseOut = itemOutForRental(chosenItem.id, candidateForSubmit, f.id);
+        var preciseOut = itemOutForCandidate(chosenItem.id, candidateForSubmit, f.id);
         var preciseAvail = Math.max(chosenItem.total - preciseOut, 0);
         if (requestedQty > preciseAvail) {
           var shortfallDays = itemShortfallDays(chosenItem.id, submittedStartDate, submittedEndDate, requestedQty, f.id);
