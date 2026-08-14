@@ -308,6 +308,8 @@
   .bl-expense-line:hover { background: var(--sand); }
   .bl-expense-line-date { font-size: 10.5px; color: #8A9490; margin-left: 6px; }
   .bl-qty-avail-note { font-size: 11px; font-weight: 700; margin-top: 4px; }
+  .bl-qty-avail-headline { font-size: 12.5px; font-weight: 700; }
+  .bl-qty-avail-detail { font-size: 10.5px; font-weight: 600; opacity: 0.75; margin-top: 2px; }
   .bl-qty-avail-ok { color: var(--teal-mid); }
   .bl-qty-avail-none { color: var(--coral); }
   .bl-add-cost-btn { display: block; width: 100%; background: none; border: 1.5px dashed var(--line); color: var(--teal-mid); font-size: 12.5px; font-weight: 700; padding: 8px; border-radius: 8px; cursor: pointer; margin-top: 2px; }
@@ -1316,19 +1318,11 @@
     }
     return best;
   }
-  function timelineToSentence(timeline) {
-    if (timeline.length === 1) return timeline[0].avail + ' available all day';
-    var parts = [];
-    for (var i = 0; i < timeline.length; i++) {
-      if (i === 0) {
-        parts.push(timeline[0].avail + ' available until ' + fmtTime(timeline[1].time));
-      } else if (i === timeline.length - 1) {
-        parts.push(timeline[i].avail + ' from ' + fmtTime(timeline[i].time) + ' onward');
-      } else {
-        parts.push(timeline[i].avail + ' until ' + fmtTime(timeline[i + 1].time));
-      }
-    }
-    return parts.join(', then ');
+  function timelineToCompact(timeline) {
+    if (timeline.length === 1) return null;
+    return ['Start: ' + timeline[0].avail].concat(
+      timeline.slice(1).map(function (t) { return fmtTime(t.time) + ': ' + t.avail; })
+    ).join('  ·  ');
   }
   function itemOutForCandidate(itemId, candidateRental, excludeRentalId) {
     if (candidateRental.pickupTime && candidateRental.dropoffTime) {
@@ -2925,15 +2919,13 @@
             if (!range) {
               qtyNote.textContent = '';
             } else {
-              var sentence = timelineToSentence(range.timeline);
               var dateSuffix = startDate !== endDate ? ' on ' + fmtDate(range.date) : '';
-              if (originalRequestedQty <= range.minAvail) {
-                qtyNote.textContent = sentence + dateSuffix + '.';
-                qtyNote.className = 'bl-qty-avail-note bl-qty-avail-ok';
-              } else {
-                qtyNote.textContent = 'Only ' + range.minAvail + ' available' + dateSuffix + ' — ' + sentence + '.';
-                qtyNote.className = 'bl-qty-avail-note bl-qty-avail-none';
-              }
+              var compact = timelineToCompact(range.timeline);
+              var ok = originalRequestedQty <= range.minAvail;
+              var headline = (ok ? range.minAvail + ' available' : 'Only ' + range.minAvail + ' available') + dateSuffix;
+              qtyNote.className = 'bl-qty-avail-note ' + (ok ? 'bl-qty-avail-ok' : 'bl-qty-avail-none');
+              qtyNote.innerHTML = '<div class="bl-qty-avail-headline">' + esc(headline) + '</div>' +
+                (compact ? '<div class="bl-qty-avail-detail">' + esc(compact) + '</div>' : '');
             }
           }
         }
