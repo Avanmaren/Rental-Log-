@@ -2193,6 +2193,7 @@
         html += '</div>';
       }
       html += '<button type="button" class="bl-add-cost-btn" data-action="add-expense-for" data-item-id="' + item.id + '">+ Add expense</button>';
+      html += '<button type="button" class="bl-add-cost-btn" data-action="subtract-expense-for" data-item-id="' + item.id + '">− Subtract from expenses</button>';
       html += '<button type="button" class="bl-add-cost-btn" data-action="add-historical-for" data-item-id="' + item.id + '">+ Add manual total</button>';
       html += '<div class="bl-profit-row" style="margin-top:8px;"><span>Total expenses</span><span>' + fmtMoney(exp) + '</span></div>' +
         '<div class="bl-profit-divider"></div>' +
@@ -2561,6 +2562,9 @@
     if (addExpenseBtn) addExpenseBtn.addEventListener('click', function () { openExpenseModal(null); });
     document.querySelectorAll('[data-action="add-expense-for"]').forEach(function (btn) {
       btn.addEventListener('click', function () { openExpenseModal(null, btn.getAttribute('data-item-id') || ''); });
+    });
+    document.querySelectorAll('[data-action="subtract-expense-for"]').forEach(function (btn) {
+      btn.addEventListener('click', function () { openExpenseModal(null, btn.getAttribute('data-item-id') || '', -1); });
     });
     document.querySelectorAll('[data-action="add-historical-for"]').forEach(function (btn) {
       btn.addEventListener('click', function () { openHistoricalModal(null, btn.getAttribute('data-item-id') || ''); });
@@ -3522,28 +3526,33 @@
     });
   }
 
-  function openExpenseModal(expense, presetItemId) {
+  function openExpenseModal(expense, presetItemId, defaultSign) {
     closeModal();
     var isEdit = !!expense;
     var thisYear = new Date().getFullYear();
     var f = expense || { description: '', amount: '', itemId: presetItemId || '', year: thisYear };
+    var sign = isEdit ? ((Number(f.amount) || 0) < 0 ? -1 : 1) : (defaultSign || 1);
     var overlay = document.createElement('div');
     overlay.className = 'bl-overlay';
     overlay.id = 'bl-overlay';
     var itemOptions = '<option value=""' + (!f.itemId ? ' selected' : '') + '>General / overhead</option>' +
       state.inventory.map(function (i) { return '<option value="' + i.id + '"' + (i.id === f.itemId ? ' selected' : '') + '>' + esc(i.name) + '</option>'; }).join('');
-    var heading = isEdit ? 'Edit expense' : 'Add expense';
+    var heading = isEdit ? 'Edit expense' : (sign < 0 ? 'Subtract from expenses' : 'Add expense');
     var yearOptions = '';
     for (var y = thisYear + 1; y >= thisYear - 8; y--) {
       yearOptions += '<option value="' + y + '"' + (y === Number(f.year) ? ' selected' : '') + '>' + y + '</option>';
     }
     overlay.innerHTML =
-      '<div class="bl-modal"><h2>' + heading + '</h2>' +
+      '<div class="bl-modal"><h2 id="bl-expense-heading">' + heading + '</h2>' +
+      '<div class="bl-field"><label>Type</label><div class="bl-cancel-reason-options">' +
+      '<button type="button" class="bl-cancel-reason-btn' + (sign === 1 ? ' selected' : '') + '" data-sign="1">Expense</button>' +
+      '<button type="button" class="bl-cancel-reason-btn' + (sign === -1 ? ' selected' : '') + '" data-sign="-1">Credit (subtract)</button>' +
+      '</div></div>' +
       '<form id="bl-expense-form">' +
-      '<div class="bl-field"><label>What did you buy</label><input name="description" value="' + esc(f.description) + '" placeholder="e.g. New paddle board" required></div>' +
+      '<div class="bl-field"><label id="bl-expense-desc-label">' + (sign < 0 ? 'What is this credit for' : 'What did you buy') + '</label><input name="description" value="' + esc(f.description) + '" placeholder="e.g. New paddle board" required></div>' +
       '<div class="bl-row2">' +
-      '<div class="bl-field"><label>Cost ($)</label><input type="number" step="0.01" min="0" name="amount" value="' + esc(f.amount) + '" required></div>' +
-      '<div class="bl-field"><label>Year purchased</label><select name="year">' + yearOptions + '</select></div>' +
+      '<div class="bl-field"><label id="bl-expense-amount-label">' + (sign < 0 ? 'Amount to subtract ($)' : 'Cost ($)') + '</label><input type="number" step="0.01" min="0" name="amount" value="' + esc(Math.abs(Number(f.amount) || 0) || '') + '" required></div>' +
+      '<div class="bl-field"><label>Year</label><select name="year">' + yearOptions + '</select></div>' +
       '</div>' +
       '<div class="bl-field"><label>Related to</label><select name="itemId">' + itemOptions + '</select></div>' +
       '<div class="bl-modal-actions">' +
@@ -3553,6 +3562,15 @@
       '<button type="submit" class="bl-save-btn">' + (isEdit ? 'Save' : 'Add') + '</button>' +
       '</div></form></div>';
     document.body.appendChild(overlay);
+    overlay.querySelectorAll('.bl-cancel-reason-btn[data-sign]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        sign = Number(btn.getAttribute('data-sign'));
+        overlay.querySelectorAll('.bl-cancel-reason-btn[data-sign]').forEach(function (b) { b.classList.toggle('selected', b === btn); });
+        document.getElementById('bl-expense-desc-label').textContent = sign < 0 ? 'What is this credit for' : 'What did you buy';
+        document.getElementById('bl-expense-amount-label').textContent = sign < 0 ? 'Amount to subtract ($)' : 'Cost ($)';
+        if (!isEdit) document.getElementById('bl-expense-heading').textContent = sign < 0 ? 'Subtract from expenses' : 'Add expense';
+      });
+    });
     overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) closeModal(); });
     document.getElementById('bl-cancel').addEventListener('click', closeModal);
     if (isEdit) document.getElementById('bl-delete-expense').addEventListener('click', function () {
@@ -3570,7 +3588,7 @@
       if (!description) return;
       var data = {
         description: description,
-        amount: Number(fd.get('amount')) || 0,
+        amount: (Number(fd.get('amount')) || 0) * sign,
         itemId: fd.get('itemId') || '',
         year: Number(fd.get('year')) || thisYear,
       };
