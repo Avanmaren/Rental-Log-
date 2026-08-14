@@ -1318,11 +1318,33 @@
     }
     return best;
   }
-  function timelineToCompact(timeline) {
-    if (timeline.length === 1) return null;
-    return ['Start: ' + timeline[0].avail].concat(
-      timeline.slice(1).map(function (t) { return fmtTime(t.time) + ': ' + t.avail; })
-    ).join('  ·  ');
+  function itemDayEvents(itemId, dateStr, excludeRentalId) {
+    var pickups = {}, dropoffs = {};
+    state.rentals.forEach(function (r) {
+      if (excludeRentalId && r.id === excludeRentalId) return;
+      if (r.cancelled || r.itemReturned) return;
+      if (r.itemId !== itemId) return;
+      if (!r.startDate || !r.endDate) return;
+      var qty = Number(r.qty) || 0;
+      if (r.startDate === dateStr && r.pickupTime) pickups[r.pickupTime] = (pickups[r.pickupTime] || 0) + qty;
+      if (r.endDate === dateStr && r.dropoffTime) dropoffs[r.dropoffTime] = (dropoffs[r.dropoffTime] || 0) + qty;
+    });
+    var events = [];
+    Object.keys(pickups).forEach(function (t) { events.push({ time: t, qty: pickups[t], type: 'rented' }); });
+    Object.keys(dropoffs).forEach(function (t) { events.push({ time: t, qty: dropoffs[t], type: 'returned' }); });
+    events.sort(function (a, b) { return a.time.localeCompare(b.time); });
+    return events;
+  }
+  function itemRangeDayInfos(itemId, startDate, endDate, excludeRentalId) {
+    var days = [];
+    var d = startDate, guard = 0;
+    while (d <= endDate && guard < 730) {
+      guard++;
+      var day = itemDayTimeline(itemId, d, excludeRentalId);
+      if (day) days.push({ date: d, avail: day.minAvail, events: itemDayEvents(itemId, d, excludeRentalId) });
+      d = addDays(d, 1);
+    }
+    return days;
   }
   function itemOutForCandidate(itemId, candidateRental, excludeRentalId) {
     if (candidateRental.pickupTime && candidateRental.dropoffTime) {
@@ -2915,17 +2937,22 @@
           if (!startDate || !endDate) {
             qtyNote.textContent = '';
           } else {
-            var range = itemRangeAvailability(item.id, startDate, endDate, f.id);
-            if (!range) {
+            var dayInfos = itemRangeDayInfos(item.id, startDate, endDate, f.id);
+            if (dayInfos.length === 0) {
               qtyNote.textContent = '';
             } else {
-              var dateSuffix = startDate !== endDate ? ' on ' + fmtDate(range.date) : '';
-              var compact = timelineToCompact(range.timeline);
-              var ok = originalRequestedQty <= range.minAvail;
-              var headline = (ok ? range.minAvail + ' available' : 'Only ' + range.minAvail + ' available') + dateSuffix;
+              var minAvail = Math.min.apply(null, dayInfos.map(function (d) { return d.avail; }));
+              var ok = originalRequestedQty <= minAvail;
+              var unitWord = item.name.toLowerCase();
+              var lines = [];
+              dayInfos.forEach(function (d) {
+                lines.push(esc(d.avail + ' ' + unitWord + (d.avail === 1 ? '' : 's') + ' available all day ' + fmtDate(d.date) + '.'));
+                d.events.forEach(function (e) {
+                  lines.push(esc(e.qty + ' ' + unitWord + (e.qty === 1 ? '' : 's') + ' ' + e.type + ' ' + fmtDate(d.date) + ' ' + fmtTime(e.time) + '.'));
+                });
+              });
               qtyNote.className = 'bl-qty-avail-note ' + (ok ? 'bl-qty-avail-ok' : 'bl-qty-avail-none');
-              qtyNote.innerHTML = '<div class="bl-qty-avail-headline">' + esc(headline) + '</div>' +
-                (compact ? '<div class="bl-qty-avail-detail">' + esc(compact) + '</div>' : '');
+              qtyNote.innerHTML = lines.join('<br>');
             }
           }
         }
