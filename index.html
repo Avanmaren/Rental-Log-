@@ -446,27 +446,45 @@
       '</div>';
   }
   var WHEEL_ITEM_H = 36;
-  function initWheelColumn(col, options, initialValue, onSettle) {
-    var idx = options.indexOf(initialValue);
-    if (idx === -1) idx = 0;
-    col.innerHTML = options.map(function (o) { return '<div class="bl-wheel-item">' + o + '</div>'; }).join('');
+  var WHEEL_LOOP_REPEAT = 9;
+  function initWheelColumn(col, options, initialValue, onSettle, loop) {
+    var period = options.length;
+    var repeat = loop ? WHEEL_LOOP_REPEAT : 1;
+    var renderOptions = [];
+    for (var k = 0; k < repeat; k++) renderOptions = renderOptions.concat(options);
+    var middleOffset = Math.floor(repeat / 2) * period;
+    var initialLogical = options.indexOf(initialValue);
+    if (initialLogical === -1) initialLogical = 0;
+    col.innerHTML = renderOptions.map(function (o) { return '<div class="bl-wheel-item">' + o + '</div>'; }).join('');
     var items = col.querySelectorAll('.bl-wheel-item');
-    function markSelected(i) {
-      items.forEach(function (el, j) { el.classList.toggle('bl-wheel-selected', j === i); });
+    function markSelected(physicalIdx) {
+      items.forEach(function (el, j) { el.classList.toggle('bl-wheel-selected', j === physicalIdx); });
     }
-    function scrollToIndex(i, smooth) {
-      col.scrollTo({ top: i * WHEEL_ITEM_H, behavior: smooth ? 'smooth' : 'auto' });
-      markSelected(i);
+    function scrollToIndex(logicalIdx, smooth) {
+      var physicalIdx = loop ? (middleOffset + logicalIdx) : logicalIdx;
+      col.scrollTo({ top: physicalIdx * WHEEL_ITEM_H, behavior: smooth ? 'smooth' : 'auto' });
+      markSelected(physicalIdx);
     }
-    scrollToIndex(idx, false);
+    scrollToIndex(initialLogical, false);
+    var suppress = false;
     var settleTimer = null;
     col.addEventListener('scroll', function () {
+      if (suppress) return;
       clearTimeout(settleTimer);
       settleTimer = setTimeout(function () {
-        var i = Math.round(col.scrollTop / WHEEL_ITEM_H);
-        i = Math.max(0, Math.min(options.length - 1, i));
-        scrollToIndex(i, true);
-        onSettle(options[i]);
+        var physicalIdx = Math.round(col.scrollTop / WHEEL_ITEM_H);
+        physicalIdx = Math.max(0, Math.min(renderOptions.length - 1, physicalIdx));
+        var logicalIdx = physicalIdx % period;
+        if (loop && (physicalIdx < period || physicalIdx >= (repeat - 1) * period)) {
+          suppress = true;
+          var recentered = middleOffset + logicalIdx;
+          col.scrollTo({ top: recentered * WHEEL_ITEM_H, behavior: 'auto' });
+          markSelected(recentered);
+          setTimeout(function () { suppress = false; }, 50);
+        } else {
+          scrollToIndex(logicalIdx, true);
+        }
+        onSettle(options[logicalIdx]);
       }, 100);
     });
     return { scrollToIndex: scrollToIndex };
@@ -521,8 +539,8 @@
       panel.style.display = '';
       if (!wheelInited) {
         wheelInited = true;
-        hourColApi = initWheelColumn(hourCol, hourOptions, current.h, function (v) { current.h = v; updateHidden(); });
-        minColApi = initWheelColumn(minCol, minOptions, current.m, function (v) { current.m = v; updateHidden(); });
+        hourColApi = initWheelColumn(hourCol, hourOptions, current.h, function (v) { current.h = v; updateHidden(); }, true);
+        minColApi = initWheelColumn(minCol, minOptions, current.m, function (v) { current.m = v; updateHidden(); }, true);
         ampmColApi = initWheelColumn(ampmCol, ampmOptions, current.ap, function (v) { current.ap = v; updateHidden(); });
       }
       document.addEventListener('click', onOutsideClick, true);
