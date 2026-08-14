@@ -71,6 +71,7 @@
 
   .bl-addon-piling { background: var(--teal-mid); }
   .bl-addon-applies { font-size: 9.5px; position: relative; z-index: 2; opacity: 0.85; margin-top: 4px; line-height: 1.25; }
+  .bl-addon-used { font-size: 9.5px; color: var(--teal-mid); font-weight: 700; margin-top: 2px; }
   .bl-addon-size-breakdown { font-size: 9px; position: relative; z-index: 2; opacity: 0.9; margin-top: 3px; line-height: 1.3; }
 
   .bl-addon-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 22px; -webkit-overflow-scrolling: touch; }
@@ -328,6 +329,9 @@
   .bl-addon-price { font-size: 12px; color: var(--teal-mid); font-weight: 700; white-space: nowrap; }
   .bl-addon-avail { color: #8A9490; font-weight: 600; }
   .bl-subtotal-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 9px 12px; background: var(--lagoon-soft); border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--teal-deep); }
+  .bl-price-breakdown { padding: 2px 12px 0; }
+  .bl-breakdown-line { display: flex; justify-content: space-between; font-size: 12px; color: #5B6E68; padding: 3px 0; }
+  .bl-breakdown-total { font-weight: 700; color: var(--teal-deep); border-top: 1px solid var(--line); margin-top: 2px; padding-top: 6px; }
   .bl-deposit-check-row label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; text-transform: none; color: var(--ink); }
   .bl-yoodlize-fee-field { background: var(--coral-soft); border-radius: 8px; padding: 10px 12px; margin-bottom: 11px; }
   .bl-yoodlize-fee-field label { color: #A8492A; }
@@ -420,8 +424,9 @@
   function timePickerHtml(name, selected) {
     var h24 = selected ? Number(selected.split(':')[0]) : null;
     var min = selected ? Number(selected.split(':')[1]) : null;
-    var meridiem = h24 !== null ? (h24 >= 12 ? 'PM' : 'AM') : 'PM';
-    var h12 = h24 !== null ? (h24 % 12 === 0 ? 12 : h24 % 12) : 1;
+    var defaultH24 = name === 'pickupTime' ? 8 : 13;
+    var meridiem = h24 !== null ? (h24 >= 12 ? 'PM' : 'AM') : (defaultH24 >= 12 ? 'PM' : 'AM');
+    var h12 = h24 !== null ? (h24 % 12 === 0 ? 12 : h24 % 12) : (defaultH24 % 12 === 0 ? 12 : defaultH24 % 12);
     var triggerLabel = selected ? fmtTimeFull(selected) : 'Select time';
     return '<div class="bl-wheel-time-wrapper" data-time-name="' + name + '">' +
       '<button type="button" class="bl-time-trigger">' + esc(triggerLabel) + ' <span class="bl-time-trigger-caret">▾</span></button>' +
@@ -513,12 +518,12 @@
         minColApi = initWheelColumn(minCol, minOptions, current.m, function (v) { current.m = v; updateHidden(); });
         ampmColApi = initWheelColumn(ampmCol, ampmOptions, current.ap, function (v) { current.ap = v; updateHidden(); });
       }
-      document.addEventListener('mousedown', onOutsideClick);
+      document.addEventListener('click', onOutsideClick, true);
       registerOpenPicker(collapse);
     }
     function collapse() {
       panel.style.display = 'none';
-      document.removeEventListener('mousedown', onOutsideClick);
+      document.removeEventListener('click', onOutsideClick, true);
       unregisterOpenPicker(collapse);
       if (wrapper._onClose) wrapper._onClose();
     }
@@ -604,12 +609,12 @@
       closeOtherPickers(collapse);
       panel.style.display = '';
       if (!inited) { inited = true; renderGrid(); }
-      document.addEventListener('mousedown', onOutsideClick);
+      document.addEventListener('click', onOutsideClick, true);
       registerOpenPicker(collapse);
     }
     function collapse() {
       panel.style.display = 'none';
-      document.removeEventListener('mousedown', onOutsideClick);
+      document.removeEventListener('click', onOutsideClick, true);
       unregisterOpenPicker(collapse);
     }
     function onOutsideClick(e) {
@@ -703,13 +708,15 @@
   async function storageSet(key, value, attempt) {
     attempt = attempt || 0;
     var localOk = lsSet(key, value);
-    if (localOk) {
-      showSaveToast();
-      if (state.error) { state.error = ''; lastFailedSave = null; render(); }
-    } else {
+    if (!localOk && !cloudReady()) {
       lastFailedSave = { key: key, value: value };
       state.error = 'Could not save your last change (' + key + '). Your browser storage may be full or blocked.';
       render();
+      return false;
+    }
+    if (localOk) {
+      showSaveToast();
+      if (state.error) { state.error = ''; lastFailedSave = null; render(); }
     }
 
     if (!cloudReady()) return localOk;
@@ -719,7 +726,7 @@
       var res = await sb.from('kv_store').upsert({ key: key, value: value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
       if (res.error) throw res.error;
       setCloudStatus('synced');
-      return localOk;
+      return true;
     }
     catch (e) {
       lastCloudError = (e && (e.message || e.error_description || e.details)) || JSON.stringify(e);
@@ -1115,6 +1122,13 @@
     return due + safety;
   }
 
+  function yoodlizeMoneyHtml(r) {
+    if (!r.yoodlize) return '';
+    var fee = Number(r.yoodlizeFee) || 0;
+    var earnings = (Number(r.price) || 0) - fee;
+    return ' · <b>Yoodlize</b>' + (fee > 0 ? ' (fee ' + fmtMoney(fee) + ')' : '') + ' · Total earnings <b>' + fmtMoney(earnings) + '</b>';
+  }
+
   function nextAction(r) {
     if (r.cancelled) return null;
     if (!r.depositPaid && !r.yoodlize) return { key: 'depositPaid', label: 'Reservation deposit paid (' + fmtMoney(r.depositAmount) + ')' };
@@ -1283,6 +1297,17 @@
     return item.components.filter(function (c) {
       return componentOutForDateRange(item.id, c.id, startDate, endDate, excludeRentalId) === 0;
     }).map(function (c) { return c.id; });
+  }
+
+  function addonUsageCount(addonId) {
+    var count = 0;
+    state.rentals.forEach(function (r) {
+      if (r.cancelled) return;
+      (r.addons || []).forEach(function (line) {
+        if ((line.addonId || line.id) === addonId) count += Number(line.qty) || 1;
+      });
+    });
+    return count;
   }
 
   function addonStockTotal(addon) {
@@ -1472,6 +1497,7 @@
         '<div class="bl-sub">' + out + ' booked today</div>' +
         sizeBreakdown +
         '<div class="bl-price-tag">' + fmtMoney(a.price) + '/day</div>' +
+        '<div class="bl-addon-used">Used ' + addonUsageCount(a.id) + 'x</div>' +
         (appliesLabel ? '<div class="bl-addon-applies">' + esc(appliesLabel) + '</div>' : '') +
         '</div>';
     });
@@ -1512,7 +1538,7 @@
           '<div class="bl-card-dates">' + fmtDate(r.startDate) + (r.pickupTime ? ' ' + fmtTime(r.pickupTime) : '') + ' → ' + fmtDate(r.endDate) + (r.dropoffTime ? ' ' + fmtTime(r.dropoffTime) : '') + '</div></div>';
         html += '<div class="bl-card-money">Total <b>' + fmtMoney(r.price) + '</b> · Safety deposit <b>' + fmtMoney(r.safetyDeposit) + '</b>' +
           (!r.pickedUp && !r.cancelled ? ' · Collect <b>' + fmtMoney(amountToCollect(r)) + '</b>' : '') +
-          (r.yoodlize ? ' · <b>Yoodlize</b>' + (Number(r.yoodlizeFee) > 0 ? ' (fee ' + fmtMoney(r.yoodlizeFee) + ')' : '') : '') +
+          yoodlizeMoneyHtml(r) +
           (r.notes ? ' · ' + esc(r.notes) : '') + '</div>';
 
         html += renderRentalStatusBlock(r, true);
@@ -1658,7 +1684,11 @@
         continuesRight: r.endDate > weekEnd,
       });
     });
-    items.sort(function (a, b) { return a.startCol - b.startCol || (b.endCol - b.startCol) - (a.endCol - a.startCol); });
+    items.sort(function (a, b) {
+      return a.startCol - b.startCol ||
+        (a.r.pickupTime || '00:00').localeCompare(b.r.pickupTime || '00:00') ||
+        (b.endCol - b.startCol) - (a.endCol - a.startCol);
+    });
     var laneEnds = [];
     items.forEach(function (item) {
       var lane = -1;
@@ -1991,7 +2021,7 @@
       html += '<div class="bl-profit-card">' +
         '<div class="bl-profit-top"><span class="bl-item-dot" style="background:' + (item.color || 'var(--lagoon)') + '"></span><span class="bl-profit-name">' + esc(item.name) + '</span></div>' +
         '<div class="bl-profit-row"><span># of rentals</span><span>' + (rentalCount + histCount) + '</span></div>' +
-        (cancelCount > 0 ? '<div class="bl-profit-row"><span>Cancellations</span><span>' + cancelCount + (cancelRevenue > 0 ? ' (kept ' + fmtMoney(cancelRevenue) + ')' : '') + '</span></div>' : '') +
+        (cancelCount > 0 ? '<div class="bl-profit-row"><span>Cancellations</span><span>' + cancelCount + '</span></div>' : '') +
         '<div class="bl-profit-row"><span>Revenue this year</span><span>' + fmtMoney(rev + histRevenue) + '</span></div>' +
         (yoodlizeFees > 0 ? '<div class="bl-profit-row"><span>Yoodlize fees</span><span>-' + fmtMoney(yoodlizeFees) + '</span></div>' : '');
       if (itemExpenses.length > 0) {
@@ -2403,7 +2433,7 @@
     closeModal();
     var isEdit = !!rental;
     var f = rental ? Object.assign({}, rental, { addons: (rental.addons || []).slice() }) : Object.assign({
-      id: null, customerName: '', source: '',
+      id: null, customerName: '', source: 'Facebook',
       itemId: state.inventory[0] ? state.inventory[0].id : '',
       qty: 1, startDate: '', endDate: '',
       price: '', depositPaid: true, safetyDeposit: '', notes: '', addons: [],
@@ -2489,6 +2519,7 @@
       '<div class="bl-field" id="bl-components-field" style="display:none;"><label>Pieces included</label><div class="bl-addon-picker" id="bl-components-picker"></div></div>' +
       '<div class="bl-field"><label>Add-ons</label><div class="bl-addon-picker" id="bl-addon-picker">' + addonPickerHtml + '</div></div>' +
       '<div class="bl-subtotal-row"><span id="bl-subtotal-text">Item + add-ons: ' + fmtMoney(0) + '</span></div>' +
+      '<div class="bl-price-breakdown" id="bl-price-breakdown"></div>' +
       '<div class="bl-field" style="margin-top:11px;"><label>Total price ($)</label><input type="number" step="0.01" name="price" id="bl-price-input" value="' + esc(f.price) + '"></div>' +
       '<div class="bl-field bl-deposit-check-row"><label><input type="checkbox" id="bl-deposit-check" name="depositPaid"' + (f.depositPaid ? ' checked' : '') + '> Reservation deposit paid (' + fmtMoney(DEPOSIT_AMOUNT) + ')</label></div>' +
       '<div class="bl-field bl-deposit-check-row"><label><input type="checkbox" id="bl-yoodlize-check" name="yoodlize"' + (f.yoodlize ? ' checked' : '') + '> Paid with Yoodlize (deposits waived)</label></div>' +
@@ -2524,9 +2555,13 @@
     var dropoffWrapper = dropoffHiddenInput ? dropoffHiddenInput.closest('.bl-wheel-time-wrapper') : null;
     if (pickupHiddenInput && dropoffHiddenInput && pickupWrapperEl && dropoffWrapper) {
       pickupWrapperEl._onClose = function () {
-        if (!isSameDayRental() || !pickupHiddenInput.value) return;
-        if (!dropoffHiddenInput.value || dropoffHiddenInput.value <= pickupHiddenInput.value) {
-          dropoffWrapper._setTimeValue(addOneHour(pickupHiddenInput.value));
+        if (!pickupHiddenInput.value) return;
+        if (isSameDayRental()) {
+          if (!dropoffHiddenInput.value || dropoffHiddenInput.value <= pickupHiddenInput.value) {
+            dropoffWrapper._setTimeValue(addOneHour(pickupHiddenInput.value));
+          }
+        } else if (!dropoffHiddenInput.value) {
+          dropoffWrapper._setTimeValue(pickupHiddenInput.value);
         }
       };
       dropoffWrapper._onClose = function () {
@@ -2575,24 +2610,38 @@
         itemLabel = item ? qty + 'x ' + item.name : 'Item';
       }
       var addonsTotal = 0;
+      var addonLines = [];
       state.addons.forEach(function (a) {
         var checkbox = overlay.querySelector('.bl-addon-check[data-addon-id="' + a.id + '"]');
         if (!checkbox || !checkbox.checked) return;
         if (a.sizes && a.sizes.length > 0) {
           overlay.querySelectorAll('.bl-size-line[data-addon-id="' + a.id + '"]').forEach(function (line) {
+            var size = line.querySelector('.bl-size-select').value;
             var q = Number(line.querySelector('.bl-size-qty').value) || 1;
-            addonsTotal += (Number(a.price) || 0) * q * days;
+            var amt = (Number(a.price) || 0) * q * days;
+            addonsTotal += amt;
+            addonLines.push({ label: a.name + (size ? ' (' + size + ')' : '') + (q > 1 ? ' x' + q : ''), amount: amt });
           });
         } else {
           var qtyInput = overlay.querySelector('.bl-addon-qty[data-addon-id="' + a.id + '"]');
           var q = Number(qtyInput ? qtyInput.value : 1) || 1;
-          addonsTotal += (Number(a.price) || 0) * q * days;
+          var amt = (Number(a.price) || 0) * q * days;
+          addonsTotal += amt;
+          addonLines.push({ label: a.name + (q > 1 ? ' x' + q : ''), amount: amt });
         }
       });
       var total = itemTotal + addonsTotal;
       var dayLabel = days === 1 ? '1 day' : days + ' days';
+      var addonNamesText = addonLines.length > 0 ? ' + ' + addonLines.map(function (l) { return l.label; }).join(', ') : '';
       document.getElementById('bl-subtotal-text').textContent =
-        itemLabel + ' × ' + dayLabel + (addonsTotal > 0 ? ' + add-ons' : '') + ': ' + fmtMoney(total);
+        itemLabel + ' × ' + dayLabel + addonNamesText + ': ' + fmtMoney(total);
+      var itemBreakdownLabel = hasComponents ? itemLabel : (item ? item.name + (qty > 1 ? ' x' + qty : '') : itemLabel);
+      var breakdownHtml = '<div class="bl-breakdown-line"><span>' + esc(itemBreakdownLabel) + '</span><span>' + fmtMoney(itemTotal) + '</span></div>';
+      addonLines.forEach(function (l) {
+        breakdownHtml += '<div class="bl-breakdown-line"><span>' + esc(l.label) + '</span><span>' + fmtMoney(l.amount) + '</span></div>';
+      });
+      breakdownHtml += '<div class="bl-breakdown-line bl-breakdown-total"><span>Total price</span><span>' + fmtMoney(total) + '</span></div>';
+      document.getElementById('bl-price-breakdown').innerHTML = breakdownHtml;
       if (autoPrice) document.getElementById('bl-price-input').value = total.toFixed(2);
       if (autoSafety) {
         var yoodlizeOn = document.getElementById('bl-yoodlize-check').checked;
@@ -2823,6 +2872,12 @@
       computeSubtotal();
     });
     overlay.addEventListener('change', function (e) {
+      if (e.target.name === 'source') {
+        if (e.target.value === 'Yoodlize') {
+          var yc = document.getElementById('bl-yoodlize-check');
+          if (!yc.checked) { yc.checked = true; applyYoodlizeState(true); }
+        }
+      }
       if (e.target.id === 'bl-item-select') {
         var selItemId = e.target.value;
         overlay.querySelectorAll('.bl-addon-block').forEach(function (block) {
@@ -3133,7 +3188,7 @@
     closeModal();
     var isEdit = !!addon;
     var f = addon || { name: '', price: '', sizes: [], total: 0, sizeStock: {}, itemIds: [] };
-    var checkedItemIds = (!f.itemIds || f.itemIds.length === 0) ? state.inventory.map(function (i) { return i.id; }) : f.itemIds;
+    var checkedItemIds = isEdit ? ((!f.itemIds || f.itemIds.length === 0) ? state.inventory.map(function (i) { return i.id; }) : f.itemIds) : [];
     var initialSizeStock = Object.assign({}, f.sizeStock || {});
     var overlay = document.createElement('div');
     overlay.className = 'bl-overlay';
@@ -3416,7 +3471,7 @@
       '<div class="bl-card-dates" style="margin-top:6px;">' + fmtDate(r.startDate) + (r.pickupTime ? ' ' + fmtTime(r.pickupTime) : '') + ' → ' + fmtDate(r.endDate) + (r.dropoffTime ? ' ' + fmtTime(r.dropoffTime) : '') + '</div>' +
       '<div class="bl-card-money" style="margin-top:6px;">Total <b>' + fmtMoney(r.price) + '</b> · Safety deposit <b>' + fmtMoney(r.safetyDeposit) + '</b>' +
       (!r.pickedUp && !r.cancelled ? ' · Collect <b>' + fmtMoney(amountToCollect(r)) + '</b>' : '') +
-      (r.yoodlize ? ' · <b>Yoodlize</b>' + (Number(r.yoodlizeFee) > 0 ? ' (fee ' + fmtMoney(r.yoodlizeFee) + ')' : '') : '') +
+      yoodlizeMoneyHtml(r) +
       (r.notes ? ' · ' + esc(r.notes) : '') + '</div>' +
       '</div>' +
       '<div class="bl-detail-status">' + renderRentalStatusBlock(r, true) + '</div>' +
