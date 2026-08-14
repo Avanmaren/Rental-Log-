@@ -1029,6 +1029,17 @@
     }
   }
 
+  function returnBucketsForItemDay(itemId, dateStr) {
+    var byTime = {};
+    state.rentals.forEach(function (r) {
+      if (r.itemReturned || r.cancelled) return;
+      if (r.itemId !== itemId) return;
+      if (r.endDate !== dateStr || !r.dropoffTime) return;
+      byTime[r.dropoffTime] = (byTime[r.dropoffTime] || 0) + (Number(r.qty) || 0);
+    });
+    return Object.keys(byTime).sort().map(function (time) { return { time: time, qty: byTime[time] }; });
+  }
+
   function availabilityForDay(dateStr) {
     var rows = state.inventory.map(function (item) {
       var out = 0;
@@ -1041,6 +1052,7 @@
       var avail = Math.max(item.total - out, 0);
       return { id: item.id, name: item.name, total: item.total, out: out, avail: avail, color: item.color, hasComponents: !!(item.components && item.components.length > 0) };
     });
+    rows.forEach(function (row) { row.returnBuckets = returnBucketsForItemDay(row.id, dateStr); });
     var addonRows = state.addons.map(function (addon) {
       var hasSizes = addon.sizes && addon.sizes.length > 0;
       var total = addonStockTotal(addon);
@@ -1834,8 +1846,14 @@
     detail.rows.forEach(function (row) {
       var cls = row.avail === 0 ? 'none' : (row.avail === row.total ? 'ok' : (row.total > 0 && row.avail <= Math.max(1, Math.ceil(row.total * 0.2)) ? 'low' : 'ok'));
       var label = row.hasComponents ? row.name + ' (full setup)' : row.name;
+      var hasBuckets = row.returnBuckets && row.returnBuckets.length > 0;
       html += '<div class="bl-day-item-row"><span>' + (row.color ? '<span class="bl-day-item-dot" style="background:' + row.color + '"></span>' : '') + esc(label) + '</span>' +
-        '<span class="bl-day-item-avail ' + cls + '">' + row.avail + ' / ' + row.total + ' available</span></div>';
+        '<span class="bl-day-item-avail ' + cls + '">' + row.avail + ' / ' + row.total + (hasBuckets ? ' available all day' : ' available') + '</span></div>';
+      if (hasBuckets) {
+        row.returnBuckets.forEach(function (b) {
+          html += '<div class="bl-day-addon-row"><span>Must be returned by ' + fmtTime(b.time) + '</span><span class="bl-day-item-avail ok">' + b.qty + '</span></div>';
+        });
+      }
       var linkedAddons = detail.addonRows.filter(function (a) { return a.itemIds.length === 0 || a.itemIds.indexOf(row.id) !== -1; });
       linkedAddons.forEach(function (a) {
         var aCls = a.avail === 0 ? 'none' : (a.avail === a.total ? 'ok' : (a.total > 0 && a.avail <= Math.max(1, Math.ceil(a.total * 0.2)) ? 'low' : 'ok'));
