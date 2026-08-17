@@ -159,6 +159,7 @@
   .bl-mini-cal-empty { cursor: default; }
   .bl-mini-cal-inrange { background: var(--lagoon-soft); border-radius: 0; }
   .bl-mini-cal-start, .bl-mini-cal-end { background: var(--teal-mid); color: white; font-weight: 700; }
+  .bl-mini-cal-today { box-shadow: inset 0 0 0 1.5px var(--coral); font-weight: 700; }
   .bl-time-done-btn { display: block; width: 100%; margin-top: 8px; background: var(--teal-mid); color: white; border: none; padding: 9px; border-radius: 7px; font-size: 13px; font-weight: 700; cursor: pointer; }
   .bl-wheel-time { position: relative; display: flex; gap: 2px; height: 180px; background: var(--sand); border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden; }
   .bl-wheel-highlight { position: absolute; top: 50%; left: 6px; right: 6px; height: 36px; transform: translateY(-18px); background: var(--sand-dark); border-radius: 8px; pointer-events: none; z-index: 0; box-shadow: 0 0 0 1px var(--line) inset; }
@@ -604,6 +605,7 @@
       var first = new Date(viewYear, viewMonth, 1);
       var startOffset = (first.getDay() + 6) % 7;
       var daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+      var todayStr = toISODate(new Date());
       monthLabel.textContent = first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       var html = weekdayLabels.map(function (w) { return '<div class="bl-mini-cal-wd">' + w + '</div>'; }).join('');
       for (var i = 0; i < startOffset; i++) html += '<div class="bl-mini-cal-day bl-mini-cal-empty"></div>';
@@ -611,7 +613,8 @@
         var dateStr = toISODate(new Date(viewYear, viewMonth, d));
         var inRange = tempStart && tempEnd && dateStr > tempStart && dateStr < tempEnd;
         var isStart = dateStr === tempStart, isEnd = dateStr === tempEnd;
-        var cls = 'bl-mini-cal-day' + (inRange ? ' bl-mini-cal-inrange' : '') + (isStart ? ' bl-mini-cal-start' : '') + (isEnd ? ' bl-mini-cal-end' : '');
+        var isToday = dateStr === todayStr;
+        var cls = 'bl-mini-cal-day' + (inRange ? ' bl-mini-cal-inrange' : '') + (isStart ? ' bl-mini-cal-start' : '') + (isEnd ? ' bl-mini-cal-end' : '') + (isToday ? ' bl-mini-cal-today' : '');
         html += '<button type="button" class="' + cls + '" data-date="' + dateStr + '">' + d + '</button>';
       }
       grid.innerHTML = html;
