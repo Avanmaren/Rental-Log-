@@ -216,6 +216,7 @@
   .bl-cal-daynum-cell.today { color: var(--coral); }
   .bl-cal-bar { font-size: 9.5px; font-weight: 700; color: white; padding: 1px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: center; text-align: center; position: relative; z-index: 2; }
   .bl-cal-bar-done { opacity: 0.5; }
+  .bl-cal-bar-cancelled { background: var(--sand-dark); color: #8A7A5C; border: 1.5px dashed #A8492A; }
   .bl-cal-bar-contleft { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -2px; }
   .bl-cal-bar-contright { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: -2px; }
   .bl-cal-more-cell { font-size: 9px; font-weight: 700; color: var(--teal-mid); text-align: center; cursor: pointer; position: relative; z-index: 2; background: var(--sand-dark); border-radius: 4px; display: flex; align-items: center; justify-content: center; margin: 0 1px; }
@@ -1767,6 +1768,8 @@
     if (includeEditButton) html += '<button class="bl-edit-btn" data-action="edit-rental" data-id="' + r.id + '">Edit details</button>';
     if (r.cancelled) {
       html += '<span class="bl-done-tag bl-cancelled-tag">Cancelled</span>';
+      html += '<button class="bl-edit-btn" data-action="edit-cancel-reason" data-id="' + r.id + '">Edit reason</button>';
+      html += '<button class="bl-action-btn" data-action="uncancel-rental" data-id="' + r.id + '">Uncancel</button>';
     } else {
       var lastStepIdx = -1;
       for (var si = STEPS.length - 1; si >= 1; si--) { if (r[STEPS[si].key]) { lastStepIdx = si; break; } }
@@ -1879,6 +1882,8 @@
       });
     });
     items.sort(function (a, b) {
+      var aCancelled = !!a.r.cancelled, bCancelled = !!b.r.cancelled;
+      if (aCancelled !== bCancelled) return aCancelled ? 1 : -1;
       return a.startCol - b.startCol ||
         (a.r.pickupTime || '00:00').localeCompare(b.r.pickupTime || '00:00') ||
         (b.endCol - b.startCol) - (a.endCol - a.startCol);
@@ -1939,10 +1944,13 @@
         var item_r = item.r;
         var itemInv = state.inventory.find(function (i) { return i.id === item_r.itemId; });
         var color = itemInv ? itemInv.color : 'var(--lagoon)';
-        var done = item_r.cancelled || item_r.itemReturned;
+        var cancelled = !!item_r.cancelled;
+        var done = cancelled || item_r.itemReturned;
         var itemLabel = rentalItemLabel(item_r, itemInv, item_r.itemName);
         var label = esc(item_r.customerName || 'Unnamed') + ' - ' + itemLabel;
-        html += '<div class="bl-cal-bar' + (done ? ' bl-cal-bar-done' : '') + (item.continuesLeft ? ' bl-cal-bar-contleft' : '') + (item.continuesRight ? ' bl-cal-bar-contright' : '') + '" data-rental-id="' + item_r.id + '" style="grid-column:' + (item.startCol + 1) + ' / ' + (item.endCol + 2) + ';grid-row:' + (item.lane + 2) + ';background:' + color + ';" title="' + label + '">' + label + '</div>';
+        var barClass = 'bl-cal-bar' + (cancelled ? ' bl-cal-bar-cancelled' : (done ? ' bl-cal-bar-done' : '')) + (item.continuesLeft ? ' bl-cal-bar-contleft' : '') + (item.continuesRight ? ' bl-cal-bar-contright' : '');
+        var barStyle = 'grid-column:' + (item.startCol + 1) + ' / ' + (item.endCol + 2) + ';grid-row:' + (item.lane + 2) + ';' + (cancelled ? '' : ('background:' + color + ';'));
+        html += '<div class="' + barClass + '" data-rental-id="' + item_r.id + '" style="' + barStyle + '" title="' + label + '">' + label + '</div>';
       });
       for (var c = 0; c < 7; c++) {
         var hiddenCount = bars.filter(function (b) { return b.lane >= MAX_LANES && c >= b.startCol && c <= b.endCol; }).length;
@@ -2433,6 +2441,31 @@
         });
       });
     });
+    document.querySelectorAll('[data-action="edit-cancel-reason"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-id');
+        var r = state.rentals.find(function (x) { return x.id === id; });
+        if (!r) return;
+        openCancelReasonModal(r, function (reason) {
+          r.cancelReason = reason;
+          storageSet('rentals', state.rentals);
+          render();
+        }, r.cancelReason || '');
+      });
+    });
+    document.querySelectorAll('[data-action="uncancel-rental"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-id');
+        var r = state.rentals.find(function (x) { return x.id === id; });
+        if (!r) return;
+        customConfirm('Uncancel this rental? It will be restored to active.', function () {
+          r.cancelled = false;
+          r.cancelReason = undefined;
+          storageSet('rentals', state.rentals);
+          render();
+        });
+      });
+    });
     document.querySelectorAll('[data-action="undo-step"]').forEach(function (dot) {
       dot.addEventListener('click', function () {
         var id = dot.getAttribute('data-id'), step = dot.getAttribute('data-step');
@@ -2676,28 +2709,30 @@
     });
   }
 
-  function openCancelReasonModal(r, onCancelled) {
+  function openCancelReasonModal(r, onCancelled, currentReason) {
+    var editMode = currentReason !== undefined;
     var existing = document.getElementById('bl-cancel-reason-overlay');
     if (existing) existing.remove();
     var keepsDeposit = r.depositPaid && !r.yoodlize;
     var reasons = ['Weather', 'No show', 'Cancelled plans', 'Other'];
+    var initialReason = editMode ? (reasons.slice(0, 3).indexOf(currentReason) !== -1 ? currentReason : 'Other') : null;
     var overlay = document.createElement('div');
     overlay.className = 'bl-overlay';
     overlay.id = 'bl-cancel-reason-overlay';
     overlay.style.zIndex = '10000';
     overlay.innerHTML =
-      '<div class="bl-modal"><h2 style="margin-top:0;">Cancel rental</h2>' +
-      (keepsDeposit ? '<p style="font-size:13.5px;color:#5B6E68;margin:0 0 12px;">You will keep the ' + fmtMoney(r.depositAmount) + ' non-refundable reservation deposit.</p>' : '') +
+      '<div class="bl-modal"><h2 style="margin-top:0;">' + (editMode ? 'Edit cancellation reason' : 'Cancel rental') + '</h2>' +
+      (!editMode && keepsDeposit ? '<p style="font-size:13.5px;color:#5B6E68;margin:0 0 12px;">You will keep the ' + fmtMoney(r.depositAmount) + ' non-refundable reservation deposit.</p>' : '') +
       '<div class="bl-field"><label>Reason for cancelling</label><div class="bl-cancel-reason-options">' +
-      reasons.map(function (reason) { return '<button type="button" class="bl-cancel-reason-btn" data-reason="' + esc(reason) + '">' + esc(reason) + '</button>'; }).join('') +
+      reasons.map(function (reason) { return '<button type="button" class="bl-cancel-reason-btn' + (reason === initialReason ? ' selected' : '') + '" data-reason="' + esc(reason) + '">' + esc(reason) + '</button>'; }).join('') +
       '</div></div>' +
-      '<div class="bl-field" id="bl-cancel-other-field" style="display:none;"><label>What happened</label><input id="bl-cancel-other-input" placeholder="Type the reason"></div>' +
+      '<div class="bl-field" id="bl-cancel-other-field" style="display:' + (initialReason === 'Other' ? '' : 'none') + ';"><label>What happened</label><input id="bl-cancel-other-input" placeholder="Type the reason" value="' + (initialReason === 'Other' ? esc(currentReason) : '') + '"></div>' +
       '<div class="bl-modal-actions">' +
       '<button type="button" class="bl-cancel-btn" id="bl-cancel-reason-close">Back</button>' +
-      '<button type="button" class="bl-save-btn" id="bl-cancel-reason-confirm" disabled>Confirm cancellation</button>' +
+      '<button type="button" class="bl-save-btn" id="bl-cancel-reason-confirm"' + (initialReason ? '' : ' disabled') + '>' + (editMode ? 'Save reason' : 'Confirm cancellation') + '</button>' +
       '</div></div>';
     document.body.appendChild(overlay);
-    var selectedReason = null;
+    var selectedReason = initialReason;
     function dismiss() { overlay.remove(); }
     overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) dismiss(); });
     document.getElementById('bl-cancel-reason-close').addEventListener('click', dismiss);
@@ -3849,6 +3884,25 @@
       openCancelReasonModal(r, function (reason) {
         r.cancelled = true;
         r.cancelReason = reason;
+        storageSet('rentals', state.rentals);
+        render();
+        openRentalDetailModal(r);
+      });
+    });
+    var editReasonBtn = overlay.querySelector('[data-action="edit-cancel-reason"]');
+    if (editReasonBtn) editReasonBtn.addEventListener('click', function () {
+      openCancelReasonModal(r, function (reason) {
+        r.cancelReason = reason;
+        storageSet('rentals', state.rentals);
+        render();
+        openRentalDetailModal(r);
+      }, r.cancelReason || '');
+    });
+    var uncancelBtn = overlay.querySelector('[data-action="uncancel-rental"]');
+    if (uncancelBtn) uncancelBtn.addEventListener('click', function () {
+      customConfirm('Uncancel this rental? It will be restored to active.', function () {
+        r.cancelled = false;
+        r.cancelReason = undefined;
         storageSet('rentals', state.rentals);
         render();
         openRentalDetailModal(r);
